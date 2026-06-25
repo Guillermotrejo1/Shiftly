@@ -1,6 +1,5 @@
-import type { Config } from "jest";
-
-const config: Config = {
+/** @type {import('jest').Config} */
+module.exports = {
   clearMocks: true,
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
@@ -10,5 +9,3 @@ const config: Config = {
   testEnvironment: "node",
   testMatch: ["**/*.test.ts"],
 };
-
-export default config;
