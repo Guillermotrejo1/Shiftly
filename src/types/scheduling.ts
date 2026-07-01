@@ -1,4 +1,4 @@
-export type StaffRole = "manager" | "supervisor" | "employee";
+export type StaffRole = "coordinator" | "manager" | "supervisor" | "employee";
 
 export type ShiftStatus =
   | "draft"

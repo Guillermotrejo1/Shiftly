@@ -1,5 +1,6 @@
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getCoordinatorStaffByEmail } from "@/lib/coordinatorAuth";
 import type { Shift, Staff } from "@/types/scheduling";
 
 const now = new Date().toISOString();
@@ -13,7 +14,7 @@ const mockStaffSeeds: MockStaffSeed[] = [
     lastName: "Patel",
     email: "maya.patel@shiftly.dev",
     phoneNumber: "555-0101",
-    role: "manager",
+    role: "coordinator",
     department: "Operations",
     skills: ["Scheduling", "Escalations"],
     isActive: true,
@@ -243,7 +244,13 @@ function buildMockShifts(staff: Staff[]): Shift[] {
   return shifts;
 }
 
-export async function seedMockFirestore() {
+export async function seedMockFirestore(coordinatorEmail: string) {
+  const coordinatorStaff = await getCoordinatorStaffByEmail(coordinatorEmail);
+
+  if (!coordinatorStaff) {
+    throw new Error("Only an active coordinator can seed Firestore.");
+  }
+
   const staff = buildMockStaff();
   const shifts = buildMockShifts(staff);
   const batch = writeBatch(db);
