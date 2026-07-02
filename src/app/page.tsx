@@ -80,6 +80,7 @@ export default function Home() {
         password
       );
       setStatus(`Account created and signed in as ${credential.user.email}.`);
+      setEmail("");
       setPassword("");
     } catch (error) {
       const message =
@@ -102,6 +103,7 @@ export default function Home() {
     try {
       const credential = await signInWithEmailAndPassword(auth, email, password);
       setStatus(`Signed in as ${credential.user.email}.`);
+      setEmail("");
       setPassword("");
     } catch (error) {
       const message =
@@ -215,11 +217,13 @@ export default function Home() {
         <div className="mt-4 rounded-2xl bg-zinc-100 p-4 text-sm leading-6 text-zinc-700">
           <p>{isAuthLoading ? "Checking auth session..." : currentUser ? `Current user: ${currentUser.email}` : "No user is signed in."}</p>
         </div>
-        <div className="mt-8 rounded-2xl bg-zinc-100 p-6 text-sm leading-6 text-zinc-700">
-          <p>This will write:</p>
-          <p>12 mock staff records into the staff collection.</p>
-          <p>14 mock shifts covering one full week into the shifts collection.</p>
-        </div>
+        {coordinatorStaff ? (
+          <div className="mt-8 rounded-2xl bg-zinc-100 p-6 text-sm leading-6 text-zinc-700">
+            <p>This will write:</p>
+            <p>12 mock staff records into the staff collection.</p>
+            <p>14 mock shifts covering one full week into the shifts collection.</p>
+          </div>
+        ) : null}
         {coordinatorStaff ? (
           <button
             type="button"
