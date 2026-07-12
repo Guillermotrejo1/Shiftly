@@ -33,13 +33,13 @@ type DirectoryShift = Shift & { id: string };
 type ShiftCoverageState = "filled" | "gap" | "pending";
 type PostShiftMode = "gap" | "pending";
 
-function getStartOfWeekUtc(baseDate = new Date()) {
+function getStartOfWeekLocal(baseDate = new Date()) {
   const result = new Date(baseDate);
-  result.setUTCHours(0, 0, 0, 0);
+  result.setHours(0, 0, 0, 0);
 
-  const day = result.getUTCDay();
+  const day = result.getDay();
   const diff = day === 0 ? -6 : 1 - day;
-  result.setUTCDate(result.getUTCDate() + diff);
+  result.setDate(result.getDate() + diff);
 
   return result;
 }
@@ -49,16 +49,14 @@ function formatWeekdayLabel(date: Date) {
     weekday: "short",
     month: "short",
     day: "numeric",
-    timeZone: "UTC",
   }).format(date);
 }
 
-function formatUtcTime(isoDateTime: string) {
+function formatLocalTime(isoDateTime: string) {
   return new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: "UTC",
   }).format(new Date(isoDateTime));
 }
 
@@ -70,7 +68,7 @@ function getShiftDurationHours(shift: DirectoryShift) {
 
 function getWeekStartKeyFromIso(isoDateTime: string) {
   const date = new Date(isoDateTime);
-  const weekStart = getStartOfWeekUtc(date);
+  const weekStart = getStartOfWeekLocal(date);
   return weekStart.toISOString().slice(0, 10);
 }
 
@@ -78,8 +76,31 @@ function formatRangeDate(date: Date) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-    timeZone: "UTC",
   }).format(date);
+}
+
+function formatTimeUntilShift(startTimeIso: string, nowTimestamp: number) {
+  const startTimestamp = new Date(startTimeIso).getTime();
+  const minutesUntilStart = Math.floor((startTimestamp - nowTimestamp) / (1000 * 60));
+
+  if (minutesUntilStart <= 0) {
+    return "Starting now";
+  }
+
+  if (minutesUntilStart < 60) {
+    return `${minutesUntilStart} min`;
+  }
+
+  const hours = Math.floor(minutesUntilStart / 60);
+  const minutes = minutesUntilStart % 60;
+
+  if (hours < 24) {
+    return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+  }
+
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  return remainingHours === 0 ? `${days}d` : `${days}d ${remainingHours}h`;
 }
 
 function getShiftCoverageState(shift: DirectoryShift): ShiftCoverageState {
@@ -239,7 +260,10 @@ export default function Home() {
   const gapAlertFeed = directoryShifts
     .filter((shift) => getShiftCoverageState(shift) === "gap")
     .filter((shift) => new Date(shift.endTime).getTime() > nowMs)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    .sort(
+      (a, b) =>
+        new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -251,14 +275,14 @@ export default function Home() {
     };
   }, []);
 
-  const weekStart = getStartOfWeekUtc();
-  weekStart.setUTCDate(weekStart.getUTCDate() + weekOffset * 7);
+  const weekStart = getStartOfWeekLocal();
+  weekStart.setDate(weekStart.getDate() + weekOffset * 7);
   const weekEnd = new Date(weekStart);
-  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+  weekEnd.setDate(weekStart.getDate() + 6);
 
   const weekBoardDays = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(weekStart);
-    date.setUTCDate(weekStart.getUTCDate() + index);
+    date.setDate(weekStart.getDate() + index);
     const dayKey = date.toISOString().slice(0, 10);
 
     return {
@@ -763,17 +787,27 @@ export default function Home() {
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-sm font-semibold text-zinc-900">{shift.title}</h3>
-                      <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-800">
-                        Gap
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                          {formatTimeUntilShift(shift.startTime, nowMs)}
+                        </span>
+                        <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-800">
+                          Gap
+                        </span>
+                      </div>
                     </div>
                     <p className="mt-1 text-sm text-zinc-700">
-                      {formatWeekdayLabel(new Date(shift.startTime))} · {formatUtcTime(shift.startTime)} - {formatUtcTime(shift.endTime)}
+                      {formatWeekdayLabel(new Date(shift.startTime))} · {formatLocalTime(shift.startTime)} - {formatLocalTime(shift.endTime)}
                     </p>
                     <p className="mt-1 text-xs text-zinc-600">
                       {shift.location}
                       {shift.department ? ` | ${shift.department}` : ""}
                     </p>
+                    {shift.notes ? (
+                      <p className="mt-2 rounded-lg bg-white/80 px-2 py-1 text-xs text-zinc-700 ring-1 ring-rose-200/60">
+                        Note: {shift.notes}
+                      </p>
+                    ) : null}
                     <p className="mt-2 text-xs font-medium text-rose-700">
                       Assigned {shift.assignedStaffIds.length} of {shift.requiredStaffCount}
                     </p>
@@ -789,7 +823,7 @@ export default function Home() {
               <div>
                 <h2 className="text-xl font-semibold text-zinc-950">Weekly Schedule Board</h2>
                 <p className="text-sm text-zinc-600">
-                  {formatRangeDate(weekStart)} - {formatRangeDate(weekEnd)} (UTC)
+                  {formatRangeDate(weekStart)} - {formatRangeDate(weekEnd)}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -881,9 +915,14 @@ export default function Home() {
                               </div>
                             </div>
                             <p className="mt-1 text-zinc-600">
-                              {formatUtcTime(shift.startTime)} - {formatUtcTime(shift.endTime)}
+                              {formatLocalTime(shift.startTime)} - {formatLocalTime(shift.endTime)}
                             </p>
                             <p className="mt-1 text-zinc-600">{shift.location}</p>
+                            {shift.notes ? (
+                              <p className="mt-1 rounded-lg bg-white/80 px-2 py-1 text-[11px] text-zinc-700 ring-1 ring-zinc-200">
+                                Note: {shift.notes}
+                              </p>
+                            ) : null}
                             <p className="mt-1 text-zinc-500">
                               Assigned: {shift.assignedStaffIds.length}/{shift.requiredStaffCount}
                             </p>
@@ -1139,7 +1178,7 @@ export default function Home() {
                 <div>
                   <h2 className="text-xl font-semibold text-zinc-950">Assign Shift Coverage</h2>
                   <p className="mt-1 text-sm text-zinc-600">
-                    {selectedGapShift.title} · {formatUtcTime(selectedGapShift.startTime)} - {formatUtcTime(selectedGapShift.endTime)}
+                    {selectedGapShift.title} · {formatLocalTime(selectedGapShift.startTime)} - {formatLocalTime(selectedGapShift.endTime)}
                   </p>
                   <p className="mt-1 text-sm text-zinc-600">
                     {selectedGapShift.location}
