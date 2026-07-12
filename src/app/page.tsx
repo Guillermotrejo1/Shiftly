@@ -13,6 +13,7 @@ import {
   collection,
   deleteDoc,
   getDocs,
+  onSnapshot,
   setDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
@@ -152,6 +153,7 @@ export default function Home() {
   const [postShiftNotes, setPostShiftNotes] = useState("");
   const [postShiftMode, setPostShiftMode] = useState<PostShiftMode>("gap");
   const [deletingShiftId, setDeletingShiftId] = useState("");
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const unitOptions = Array.from(
     new Set(directoryStaff.map((staff) => staff.department ?? "Unassigned"))
@@ -233,6 +235,21 @@ export default function Home() {
   const staffNameById = new Map(
     directoryStaff.map((staff) => [staff.id, `${staff.firstName} ${staff.lastName}`])
   );
+
+  const gapAlertFeed = directoryShifts
+    .filter((shift) => getShiftCoverageState(shift) === "gap")
+    .filter((shift) => new Date(shift.endTime).getTime() > nowMs)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   const weekStart = getStartOfWeekUtc();
   weekStart.setUTCDate(weekStart.getUTCDate() + weekOffset * 7);
@@ -324,10 +341,7 @@ export default function Home() {
       setIsDirectoryLoading(true);
 
       try {
-        const [staffSnapshot, shiftSnapshot] = await Promise.all([
-          getDocs(collection(db, "staff")),
-          getDocs(collection(db, "shifts")),
-        ]);
+        const staffSnapshot = await getDocs(collection(db, "staff"));
 
         const staff = staffSnapshot.docs
           .map(mapStaffDocument)
@@ -337,24 +351,39 @@ export default function Home() {
             )
           );
 
-        const shifts = shiftSnapshot.docs
-          .map(mapShiftDocument)
-          .sort((a: DirectoryShift, b: DirectoryShift) =>
-            b.startTime.localeCompare(a.startTime)
-          );
-
         setDirectoryStaff(staff);
-        setDirectoryShifts(shifts);
       } catch (error) {
         const message =
           error instanceof Error
             ? error.message
             : "Unable to load staff directory.";
         setStatus(`Staff directory failed to load: ${message}`);
-      } finally {
-        setIsDirectoryLoading(false);
       }
     })();
+
+    const unsubscribeShifts = onSnapshot(
+      collection(db, "shifts"),
+      (snapshot) => {
+        const shifts = snapshot.docs
+          .map(mapShiftDocument)
+          .sort((a: DirectoryShift, b: DirectoryShift) =>
+            b.startTime.localeCompare(a.startTime)
+          );
+
+        setDirectoryShifts(shifts);
+        setIsDirectoryLoading(false);
+      },
+      (error) => {
+        const message =
+          error instanceof Error ? error.message : "Unable to stream shifts.";
+        setStatus(`Real-time shift feed failed: ${message}`);
+        setIsDirectoryLoading(false);
+      }
+    );
+
+    return () => {
+      unsubscribeShifts();
+    };
   }, [coordinatorStaff]);
 
   async function handleCreateAccount() {
@@ -506,27 +535,34 @@ export default function Home() {
     try {
       const shiftRef = doc(collection(db, "shifts"));
       const nowIso = new Date().toISOString();
+      const normalizedDepartment = postShiftDepartment.trim();
+      const normalizedNotes = postShiftNotes.trim();
       const nextShift: DirectoryShift = {
         id: shiftRef.id,
         title: postShiftTitle.trim(),
         location: postShiftLocation.trim() || "Main Office",
-        department: postShiftDepartment.trim() || undefined,
         startTime: startDate.toISOString(),
         endTime: endDate.toISOString(),
         requiredStaffCount: postShiftRequiredCount,
         assignedStaffIds: [],
         status: postShiftMode === "gap" ? "assigned" : "open",
-        notes: postShiftNotes.trim() || undefined,
         createdBy: coordinatorStaff.id,
         createdAt: nowIso,
         updatedAt: nowIso,
+        ...(normalizedDepartment ? { department: normalizedDepartment } : {}),
+        ...(normalizedNotes ? { notes: normalizedNotes } : {}),
       };
 
       await setDoc(shiftRef, nextShift);
 
-      setDirectoryShifts((previousShifts) =>
-        [nextShift, ...previousShifts].sort((a, b) => b.startTime.localeCompare(a.startTime))
-      );
+      setDirectoryShifts((previousShifts) => {
+        const mergedShifts = [nextShift, ...previousShifts];
+        const uniqueShifts = Array.from(
+          new Map(mergedShifts.map((shift) => [shift.id, shift])).values()
+        );
+
+        return uniqueShifts.sort((a, b) => b.startTime.localeCompare(a.startTime));
+      });
 
       setStatus(
         `Posted shift "${nextShift.title}" for ${formatRangeDate(startDate)}.`
@@ -699,6 +735,53 @@ export default function Home() {
           >
             {isSeeding ? "Seeding..." : "Seed Firestore"}
           </button>
+        ) : null}
+        {coordinatorStaff ? (
+          <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold text-zinc-950">Real-time Gap Alerts</h2>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-800">
+                  {gapAlertFeed.length} open gaps
+                </span>
+                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                  Live
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {gapAlertFeed.length === 0 ? (
+                <p className="rounded-2xl bg-zinc-100 p-4 text-sm text-zinc-700">
+                  No real-time gap alerts right now.
+                </p>
+              ) : (
+                gapAlertFeed.slice(0, 8).map((shift) => (
+                  <article
+                    key={shift.id}
+                    className="rounded-2xl border border-rose-200 bg-rose-50 p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-zinc-900">{shift.title}</h3>
+                      <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-800">
+                        Gap
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-zinc-700">
+                      {formatWeekdayLabel(new Date(shift.startTime))} · {formatUtcTime(shift.startTime)} - {formatUtcTime(shift.endTime)}
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-600">
+                      {shift.location}
+                      {shift.department ? ` | ${shift.department}` : ""}
+                    </p>
+                    <p className="mt-2 text-xs font-medium text-rose-700">
+                      Assigned {shift.assignedStaffIds.length} of {shift.requiredStaffCount}
+                    </p>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
         ) : null}
         {coordinatorStaff ? (
           <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
