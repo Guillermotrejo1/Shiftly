@@ -9,8 +9,11 @@ import {
   type User,
 } from "firebase/auth";
 import {
+  doc,
   collection,
+  deleteDoc,
   getDocs,
+  setDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
@@ -27,6 +30,7 @@ type DirectoryStaff = Staff & { id: string };
 type AvailabilityFilter = "all" | "available" | "unavailable";
 type DirectoryShift = Shift & { id: string };
 type ShiftCoverageState = "filled" | "gap" | "pending";
+type PostShiftMode = "gap" | "pending";
 
 function getStartOfWeekUtc(baseDate = new Date()) {
   const result = new Date(baseDate);
@@ -136,6 +140,18 @@ export default function Home() {
     useState<DirectoryShift | null>(null);
   const [selectedAssignmentStaffId, setSelectedAssignmentStaffId] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [isStaffDirectoryExpanded, setIsStaffDirectoryExpanded] = useState(true);
+  const [isPostShiftModalOpen, setIsPostShiftModalOpen] = useState(false);
+  const [isPostingShift, setIsPostingShift] = useState(false);
+  const [postShiftTitle, setPostShiftTitle] = useState("");
+  const [postShiftLocation, setPostShiftLocation] = useState("Main Office");
+  const [postShiftDepartment, setPostShiftDepartment] = useState("Operations");
+  const [postShiftStartTime, setPostShiftStartTime] = useState("");
+  const [postShiftEndTime, setPostShiftEndTime] = useState("");
+  const [postShiftRequiredCount, setPostShiftRequiredCount] = useState(2);
+  const [postShiftNotes, setPostShiftNotes] = useState("");
+  const [postShiftMode, setPostShiftMode] = useState<PostShiftMode>("gap");
+  const [deletingShiftId, setDeletingShiftId] = useState("");
 
   const unitOptions = Array.from(
     new Set(directoryStaff.map((staff) => staff.department ?? "Unassigned"))
@@ -440,6 +456,127 @@ export default function Home() {
     setSelectedAssignmentStaffId("");
   }
 
+  function resetPostShiftForm() {
+    setPostShiftTitle("");
+    setPostShiftLocation("Main Office");
+    setPostShiftDepartment("Operations");
+    setPostShiftStartTime("");
+    setPostShiftEndTime("");
+    setPostShiftRequiredCount(2);
+    setPostShiftNotes("");
+    setPostShiftMode("gap");
+  }
+
+  function handleClosePostShiftModal() {
+    setIsPostShiftModalOpen(false);
+    resetPostShiftForm();
+  }
+
+  async function handlePostShift() {
+    if (!db || !coordinatorStaff) {
+      setStatus("Only a coordinator can post future shifts.");
+      return;
+    }
+
+    if (!postShiftTitle || !postShiftStartTime || !postShiftEndTime) {
+      setStatus("Enter shift title, start time, and end time.");
+      return;
+    }
+
+    const startDate = new Date(postShiftStartTime);
+    const endDate = new Date(postShiftEndTime);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      setStatus("Invalid date/time selected for the shift.");
+      return;
+    }
+
+    if (endDate <= startDate) {
+      setStatus("Shift end time must be after start time.");
+      return;
+    }
+
+    if (postShiftRequiredCount < 1) {
+      setStatus("Required staff count must be at least 1.");
+      return;
+    }
+
+    setIsPostingShift(true);
+
+    try {
+      const shiftRef = doc(collection(db, "shifts"));
+      const nowIso = new Date().toISOString();
+      const nextShift: DirectoryShift = {
+        id: shiftRef.id,
+        title: postShiftTitle.trim(),
+        location: postShiftLocation.trim() || "Main Office",
+        department: postShiftDepartment.trim() || undefined,
+        startTime: startDate.toISOString(),
+        endTime: endDate.toISOString(),
+        requiredStaffCount: postShiftRequiredCount,
+        assignedStaffIds: [],
+        status: postShiftMode === "gap" ? "assigned" : "open",
+        notes: postShiftNotes.trim() || undefined,
+        createdBy: coordinatorStaff.id,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+
+      await setDoc(shiftRef, nextShift);
+
+      setDirectoryShifts((previousShifts) =>
+        [nextShift, ...previousShifts].sort((a, b) => b.startTime.localeCompare(a.startTime))
+      );
+
+      setStatus(
+        `Posted shift "${nextShift.title}" for ${formatRangeDate(startDate)}.`
+      );
+      handleClosePostShiftModal();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to post shift.";
+      setStatus(`Post shift failed: ${message}`);
+    } finally {
+      setIsPostingShift(false);
+    }
+  }
+
+  async function handleDeleteShift(shift: DirectoryShift) {
+    if (!db || !coordinatorStaff) {
+      setStatus("Only a coordinator can delete shifts.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete shift "${shift.title}" on ${formatRangeDate(new Date(shift.startTime))}?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingShiftId(shift.id);
+
+    try {
+      await deleteDoc(doc(db, "shifts", shift.id));
+      setDirectoryShifts((previousShifts) =>
+        previousShifts.filter((existingShift) => existingShift.id !== shift.id)
+      );
+
+      if (selectedGapShift?.id === shift.id) {
+        handleCloseGapAssignment();
+      }
+
+      setStatus(`Deleted shift "${shift.title}".`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to delete shift.";
+      setStatus(`Delete shift failed: ${message}`);
+    } finally {
+      setDeletingShiftId("");
+    }
+  }
+
   function handleAssignToGap() {
     if (!selectedGapShift || !selectedAssignmentStaffId) {
       setStatus("Choose a staff member to assign first.");
@@ -575,6 +712,13 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => setIsPostShiftModalOpen(true)}
+                  className="rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-zinc-800"
+                >
+                  Post shift
+                </button>
+                <button
+                  type="button"
                   onClick={() => setWeekOffset((previous) => previous - 1)}
                   className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-900 transition hover:border-zinc-950"
                 >
@@ -634,11 +778,24 @@ export default function Home() {
                           >
                             <div className="flex items-center justify-between gap-2">
                               <h3 className="font-semibold text-zinc-900">{shift.title}</h3>
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${coverageStyles.badge}`}
-                              >
-                                {coverageState}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${coverageStyles.badge}`}
+                                >
+                                  {coverageState}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void handleDeleteShift(shift);
+                                  }}
+                                  disabled={deletingShiftId === shift.id}
+                                  className="rounded-full border border-zinc-300 bg-white px-2 py-0.5 text-[10px] font-medium text-zinc-700 transition hover:border-zinc-950 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
+                                >
+                                  {deletingShiftId === shift.id ? "Deleting..." : "Delete"}
+                                </button>
+                              </div>
                             </div>
                             <p className="mt-1 text-zinc-600">
                               {formatUtcTime(shift.startTime)} - {formatUtcTime(shift.endTime)}
@@ -688,13 +845,26 @@ export default function Home() {
         {coordinatorStaff ? (
           <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold text-zinc-950">Staff Directory</h2>
-              <p className="text-sm text-zinc-600">
-                Showing {filteredDirectoryStaff.length} of {directoryStaff.length} staff
-              </p>
+              <div>
+                <h2 className="text-xl font-semibold text-zinc-950">Staff Directory</h2>
+                <p className="text-sm text-zinc-600">
+                  Showing {filteredDirectoryStaff.length} of {directoryStaff.length} staff
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setIsStaffDirectoryExpanded((previous) => !previous)
+                }
+                className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition hover:border-zinc-950"
+              >
+                {isStaffDirectoryExpanded ? "Collapse" : "Expand"}
+              </button>
             </div>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {isStaffDirectoryExpanded ? (
+              <>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium text-zinc-900">
                 Unit
                 <select
@@ -725,9 +895,9 @@ export default function Home() {
                   <option value="unavailable">Unavailable</option>
                 </select>
               </label>
-            </div>
+                </div>
 
-            <div className="mt-6 space-y-3">
+                <div className="mt-6 space-y-3">
               {isDirectoryLoading ? (
                 <p className="rounded-2xl bg-zinc-100 p-4 text-sm text-zinc-700">
                   Loading staff directory...
@@ -770,7 +940,13 @@ export default function Home() {
                   </article>
                 ))
               )}
-            </div>
+                </div>
+              </>
+            ) : (
+              <p className="mt-4 rounded-2xl bg-zinc-100 p-4 text-sm text-zinc-700">
+                Directory collapsed. Expand to view staff filters and profiles.
+              </p>
+            )}
           </section>
         ) : null}
         {selectedStaff ? (
@@ -974,6 +1150,138 @@ export default function Home() {
                   className="rounded-full bg-zinc-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
                 >
                   Assign to shift
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {isPostShiftModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4">
+            <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-zinc-200">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-zinc-950">Post Future Shift</h2>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    Create a future shift as a gap or pending opening.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClosePostShiftModal}
+                  className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition hover:border-zinc-950"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-medium text-zinc-900 sm:col-span-2">
+                  Shift title
+                  <input
+                    type="text"
+                    value={postShiftTitle}
+                    onChange={(event) => setPostShiftTitle(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                    placeholder="Morning Coverage"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-zinc-900">
+                  Start (local)
+                  <input
+                    type="datetime-local"
+                    value={postShiftStartTime}
+                    onChange={(event) => setPostShiftStartTime(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-zinc-900">
+                  End (local)
+                  <input
+                    type="datetime-local"
+                    value={postShiftEndTime}
+                    onChange={(event) => setPostShiftEndTime(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-zinc-900">
+                  Location
+                  <input
+                    type="text"
+                    value={postShiftLocation}
+                    onChange={(event) => setPostShiftLocation(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                    placeholder="Main Office"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-zinc-900">
+                  Unit
+                  <input
+                    type="text"
+                    value={postShiftDepartment}
+                    onChange={(event) => setPostShiftDepartment(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                    placeholder="Operations"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-zinc-900">
+                  Required staff
+                  <input
+                    type="number"
+                    min={1}
+                    value={postShiftRequiredCount}
+                    onChange={(event) =>
+                      setPostShiftRequiredCount(Number(event.target.value) || 1)
+                    }
+                    className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-zinc-900">
+                  Post as
+                  <select
+                    value={postShiftMode}
+                    onChange={(event) =>
+                      setPostShiftMode(event.target.value as PostShiftMode)
+                    }
+                    className="mt-2 w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                  >
+                    <option value="gap">Gap (clickable for assignment)</option>
+                    <option value="pending">Pending opening</option>
+                  </select>
+                </label>
+
+                <label className="text-sm font-medium text-zinc-900 sm:col-span-2">
+                  Notes
+                  <textarea
+                    value={postShiftNotes}
+                    onChange={(event) => setPostShiftNotes(event.target.value)}
+                    rows={3}
+                    className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                    placeholder="Optional shift notes"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={handleClosePostShiftModal}
+                  className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-900 transition hover:border-zinc-950"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePostShift}
+                  disabled={isPostingShift}
+                  className="rounded-full bg-zinc-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+                >
+                  {isPostingShift ? "Posting..." : "Post shift"}
                 </button>
               </div>
             </div>
