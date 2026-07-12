@@ -20,6 +20,7 @@ import {
   type CoordinatorStaff,
 } from "@/lib/coordinatorAuth";
 import { seedMockFirestore } from "@/lib/seedFirestore";
+import { wouldExceedWeeklyHoursThreshold } from "@/lib/overtime";
 import type { Shift, Staff } from "@/types/scheduling";
 
 type DirectoryStaff = Staff & { id: string };
@@ -54,6 +55,18 @@ function formatUtcTime(isoDateTime: string) {
     hour12: true,
     timeZone: "UTC",
   }).format(new Date(isoDateTime));
+}
+
+function getShiftDurationHours(shift: DirectoryShift) {
+  const start = new Date(shift.startTime).getTime();
+  const end = new Date(shift.endTime).getTime();
+  return Math.max(0, (end - start) / (1000 * 60 * 60));
+}
+
+function getWeekStartKeyFromIso(isoDateTime: string) {
+  const date = new Date(isoDateTime);
+  const weekStart = getStartOfWeekUtc(date);
+  return weekStart.toISOString().slice(0, 10);
 }
 
 function formatRangeDate(date: Date) {
@@ -144,6 +157,31 @@ export default function Home() {
         .sort((a, b) => b.startTime.localeCompare(a.startTime))
     : [];
 
+  const selectedGapShiftWeekKey = selectedGapShift
+    ? getWeekStartKeyFromIso(selectedGapShift.startTime)
+    : null;
+
+  const selectedGapShiftHours = selectedGapShift
+    ? getShiftDurationHours(selectedGapShift)
+    : 0;
+
+  const staffWeeklyHours = new Map(
+    directoryStaff.map((staff) => {
+      if (!selectedGapShiftWeekKey) {
+        return [staff.id, 0] as const;
+      }
+
+      const weeklyHours = directoryShifts
+        .filter((shift) => shift.assignedStaffIds.includes(staff.id))
+        .filter(
+          (shift) => getWeekStartKeyFromIso(shift.startTime) === selectedGapShiftWeekKey
+        )
+        .reduce((total, shift) => total + getShiftDurationHours(shift), 0);
+
+      return [staff.id, weeklyHours] as const;
+    })
+  );
+
   const eligibleStaffForGap = selectedGapShift
     ? directoryStaff
         .filter((staff) => staff.isActive)
@@ -157,6 +195,24 @@ export default function Home() {
           )
         )
     : [];
+
+  const selectedAssignmentStaff = directoryStaff.find(
+    (staff) => staff.id === selectedAssignmentStaffId
+  );
+
+  const selectedAssignmentThreshold = selectedAssignmentStaff?.maxWeeklyHours ?? 40;
+  const selectedAssignmentCurrentHours = selectedAssignmentStaff
+    ? staffWeeklyHours.get(selectedAssignmentStaff.id) ?? 0
+    : 0;
+  const selectedAssignmentProjectedHours =
+    selectedAssignmentCurrentHours + selectedGapShiftHours;
+  const selectedAssignmentWouldExceedThreshold =
+    !!selectedAssignmentStaff &&
+    wouldExceedWeeklyHoursThreshold(
+      selectedAssignmentCurrentHours,
+      selectedGapShiftHours,
+      selectedAssignmentThreshold
+    );
 
   const staffNameById = new Map(
     directoryStaff.map((staff) => [staff.id, `${staff.firstName} ${staff.lastName}`])
@@ -387,6 +443,13 @@ export default function Home() {
   function handleAssignToGap() {
     if (!selectedGapShift || !selectedAssignmentStaffId) {
       setStatus("Choose a staff member to assign first.");
+      return;
+    }
+
+    if (selectedAssignmentWouldExceedThreshold) {
+      setStatus(
+        `Assignment blocked: projected hours (${selectedAssignmentProjectedHours.toFixed(1)}) exceed threshold (${selectedAssignmentThreshold}).`
+      );
       return;
     }
 
@@ -844,6 +907,17 @@ export default function Home() {
                   </p>
                 ) : (
                   eligibleStaffForGap.map((staff) => (
+                    (() => {
+                      const currentHours = staffWeeklyHours.get(staff.id) ?? 0;
+                      const projectedHours = currentHours + selectedGapShiftHours;
+                      const threshold = staff.maxWeeklyHours ?? 40;
+                      const wouldExceed = wouldExceedWeeklyHoursThreshold(
+                        currentHours,
+                        selectedGapShiftHours,
+                        threshold
+                      );
+
+                      return (
                     <label
                       key={staff.id}
                       className="flex cursor-pointer items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3"
@@ -863,11 +937,27 @@ export default function Home() {
                         <p className="text-xs text-zinc-600">
                           {staff.role} · {staff.department ?? "Unassigned"}
                         </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Weekly hours: {currentHours.toFixed(1)} / {threshold} · Projected: {projectedHours.toFixed(1)}
+                        </p>
+                        {wouldExceed ? (
+                          <p className="mt-1 text-xs font-medium text-rose-700">
+                            Overtime warning: exceeds threshold.
+                          </p>
+                        ) : null}
                       </div>
                     </label>
+                      );
+                    })()
                   ))
                 )}
               </div>
+
+              {selectedAssignmentWouldExceedThreshold ? (
+                <p className="mt-4 rounded-2xl bg-rose-100 p-3 text-sm text-rose-800">
+                  Assignment blocked: projected weekly hours exceed the threshold.
+                </p>
+              ) : null}
 
               <div className="mt-6 flex flex-wrap justify-end gap-3">
                 <button
@@ -880,7 +970,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleAssignToGap}
-                  disabled={!selectedAssignmentStaffId}
+                  disabled={!selectedAssignmentStaffId || selectedAssignmentWouldExceedThreshold}
                   className="rounded-full bg-zinc-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
                 >
                   Assign to shift

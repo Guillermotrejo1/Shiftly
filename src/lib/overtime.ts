@@ -12,3 +12,35 @@ export function calculateOvertimeHours(
 
   return Math.max(0, totalHoursWorked - regularHoursLimit);
 }
+
+export function calculateProjectedWeeklyHours(
+  currentWeeklyHours: number,
+  shiftHoursToAssign: number
+) {
+  if (currentWeeklyHours < 0) {
+    throw new Error("currentWeeklyHours cannot be negative");
+  }
+
+  if (shiftHoursToAssign < 0) {
+    throw new Error("shiftHoursToAssign cannot be negative");
+  }
+
+  return currentWeeklyHours + shiftHoursToAssign;
+}
+
+export function wouldExceedWeeklyHoursThreshold(
+  currentWeeklyHours: number,
+  shiftHoursToAssign: number,
+  weeklyHoursThreshold = 40
+) {
+  if (weeklyHoursThreshold < 0) {
+    throw new Error("weeklyHoursThreshold cannot be negative");
+  }
+
+  const projectedHours = calculateProjectedWeeklyHours(
+    currentWeeklyHours,
+    shiftHoursToAssign
+  );
+
+  return projectedHours > weeklyHoursThreshold;
+}
