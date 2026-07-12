@@ -14,6 +14,7 @@ import {
   deleteDoc,
   getDocs,
   onSnapshot,
+  runTransaction,
   setDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
@@ -637,7 +638,12 @@ export default function Home() {
     }
   }
 
-  function handleAssignToGap() {
+  async function handleAssignToGap() {
+    if (!db || !coordinatorStaff) {
+      setStatus("Only a coordinator can assign staff to shifts.");
+      return;
+    }
+
     if (!selectedGapShift || !selectedAssignmentStaffId) {
       setStatus("Choose a staff member to assign first.");
       return;
@@ -650,31 +656,68 @@ export default function Home() {
       return;
     }
 
-    setDirectoryShifts((previousShifts) =>
-      previousShifts.map((shift) => {
-        if (shift.id !== selectedGapShift.id) {
-          return shift;
+    try {
+      const shiftRef = doc(db, "shifts", selectedGapShift.id);
+      const assignedStaffId = selectedAssignmentStaffId;
+
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(shiftRef);
+
+        if (!snapshot.exists()) {
+          throw new Error("Shift no longer exists.");
         }
 
-        const hasStaffAlready = shift.assignedStaffIds.includes(selectedAssignmentStaffId);
-        const nextAssignedStaffIds = hasStaffAlready
-          ? shift.assignedStaffIds
-          : [...shift.assignedStaffIds, selectedAssignmentStaffId];
+        const shift = snapshot.data() as Shift;
+        const hasStaffAlready = shift.assignedStaffIds.includes(assignedStaffId);
 
-        return {
-          ...shift,
+        if (hasStaffAlready) {
+          return;
+        }
+
+        const nextAssignedStaffIds = [...shift.assignedStaffIds, assignedStaffId];
+
+        transaction.update(shiftRef, {
           assignedStaffIds: nextAssignedStaffIds,
           status:
             nextAssignedStaffIds.length >= shift.requiredStaffCount
               ? "assigned"
               : shift.status,
-        };
-      })
-    );
+          updatedAt: new Date().toISOString(),
+        });
+      });
 
-    const assignedStaffName = staffNameById.get(selectedAssignmentStaffId) ?? selectedAssignmentStaffId;
-    setStatus(`Assigned ${assignedStaffName} to ${selectedGapShift.title}.`);
-    handleCloseGapAssignment();
+      setDirectoryShifts((previousShifts) =>
+        previousShifts.map((shift) => {
+          if (shift.id !== selectedGapShift.id) {
+            return shift;
+          }
+
+          const hasStaffAlready = shift.assignedStaffIds.includes(assignedStaffId);
+          const nextAssignedStaffIds = hasStaffAlready
+            ? shift.assignedStaffIds
+            : [...shift.assignedStaffIds, assignedStaffId];
+
+          return {
+            ...shift,
+            assignedStaffIds: nextAssignedStaffIds,
+            status:
+              nextAssignedStaffIds.length >= shift.requiredStaffCount
+                ? "assigned"
+                : shift.status,
+            updatedAt: new Date().toISOString(),
+          };
+        })
+      );
+
+      const assignedStaffName =
+        staffNameById.get(assignedStaffId) ?? assignedStaffId;
+      setStatus(`Assigned ${assignedStaffName} to ${selectedGapShift.title}.`);
+      handleCloseGapAssignment();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to assign shift.";
+      setStatus(`Assign failed: ${message}`);
+    }
   }
 
   return (
