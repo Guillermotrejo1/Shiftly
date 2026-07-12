@@ -25,6 +25,77 @@ import type { Shift, Staff } from "@/types/scheduling";
 type DirectoryStaff = Staff & { id: string };
 type AvailabilityFilter = "all" | "available" | "unavailable";
 type DirectoryShift = Shift & { id: string };
+type ShiftCoverageState = "filled" | "gap" | "pending";
+
+function getStartOfWeekUtc(baseDate = new Date()) {
+  const result = new Date(baseDate);
+  result.setUTCHours(0, 0, 0, 0);
+
+  const day = result.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  result.setUTCDate(result.getUTCDate() + diff);
+
+  return result;
+}
+
+function formatWeekdayLabel(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function formatUtcTime(isoDateTime: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  }).format(new Date(isoDateTime));
+}
+
+function formatRangeDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function getShiftCoverageState(shift: DirectoryShift): ShiftCoverageState {
+  if (shift.status === "draft" || shift.status === "open") {
+    return "pending";
+  }
+
+  if (shift.assignedStaffIds.length < shift.requiredStaffCount) {
+    return "gap";
+  }
+
+  return "filled";
+}
+
+function getCoverageStyles(state: ShiftCoverageState) {
+  if (state === "filled") {
+    return {
+      card: "bg-emerald-50 ring-1 ring-emerald-200",
+      badge: "bg-emerald-100 text-emerald-800",
+    };
+  }
+
+  if (state === "gap") {
+    return {
+      card: "bg-rose-50 ring-1 ring-rose-200",
+      badge: "bg-rose-100 text-rose-800",
+    };
+  }
+
+  return {
+    card: "bg-amber-50 ring-1 ring-amber-200",
+    badge: "bg-amber-100 text-amber-800",
+  };
+}
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -48,6 +119,10 @@ export default function Home() {
     useState<AvailabilityFilter>("all");
   const [selectedStaff, setSelectedStaff] =
     useState<DirectoryStaff | null>(null);
+  const [selectedGapShift, setSelectedGapShift] =
+    useState<DirectoryShift | null>(null);
+  const [selectedAssignmentStaffId, setSelectedAssignmentStaffId] = useState("");
+  const [weekOffset, setWeekOffset] = useState(0);
 
   const unitOptions = Array.from(
     new Set(directoryStaff.map((staff) => staff.department ?? "Unassigned"))
@@ -68,6 +143,43 @@ export default function Home() {
         .filter((shift) => shift.assignedStaffIds.includes(selectedStaff.id))
         .sort((a, b) => b.startTime.localeCompare(a.startTime))
     : [];
+
+  const eligibleStaffForGap = selectedGapShift
+    ? directoryStaff
+        .filter((staff) => staff.isActive)
+        .filter((staff) => !selectedGapShift.assignedStaffIds.includes(staff.id))
+        .filter((staff) =>
+          selectedGapShift.department ? staff.department === selectedGapShift.department : true
+        )
+        .sort((a, b) =>
+          `${a.lastName} ${a.firstName}`.localeCompare(
+            `${b.lastName} ${b.firstName}`
+          )
+        )
+    : [];
+
+  const staffNameById = new Map(
+    directoryStaff.map((staff) => [staff.id, `${staff.firstName} ${staff.lastName}`])
+  );
+
+  const weekStart = getStartOfWeekUtc();
+  weekStart.setUTCDate(weekStart.getUTCDate() + weekOffset * 7);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+
+  const weekBoardDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setUTCDate(weekStart.getUTCDate() + index);
+    const dayKey = date.toISOString().slice(0, 10);
+
+    return {
+      dayKey,
+      label: formatWeekdayLabel(date),
+      shifts: directoryShifts
+        .filter((shift) => shift.startTime.slice(0, 10) === dayKey)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    };
+  });
 
   function mapStaffDocument(snapshot: QueryDocumentSnapshot<DocumentData>) {
     const staff = snapshot.data() as Staff;
@@ -262,9 +374,52 @@ export default function Home() {
     }
   }
 
+  function handleOpenGapAssignment(shift: DirectoryShift) {
+    setSelectedGapShift(shift);
+    setSelectedAssignmentStaffId("");
+  }
+
+  function handleCloseGapAssignment() {
+    setSelectedGapShift(null);
+    setSelectedAssignmentStaffId("");
+  }
+
+  function handleAssignToGap() {
+    if (!selectedGapShift || !selectedAssignmentStaffId) {
+      setStatus("Choose a staff member to assign first.");
+      return;
+    }
+
+    setDirectoryShifts((previousShifts) =>
+      previousShifts.map((shift) => {
+        if (shift.id !== selectedGapShift.id) {
+          return shift;
+        }
+
+        const hasStaffAlready = shift.assignedStaffIds.includes(selectedAssignmentStaffId);
+        const nextAssignedStaffIds = hasStaffAlready
+          ? shift.assignedStaffIds
+          : [...shift.assignedStaffIds, selectedAssignmentStaffId];
+
+        return {
+          ...shift,
+          assignedStaffIds: nextAssignedStaffIds,
+          status:
+            nextAssignedStaffIds.length >= shift.requiredStaffCount
+              ? "assigned"
+              : shift.status,
+        };
+      })
+    );
+
+    const assignedStaffName = staffNameById.get(selectedAssignmentStaffId) ?? selectedAssignmentStaffId;
+    setStatus(`Assigned ${assignedStaffName} to ${selectedGapShift.title}.`);
+    handleCloseGapAssignment();
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-8">
-      <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
+      <div className="w-full max-w-7xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
         <h1 className="text-3xl font-semibold text-zinc-950">
           Shiftly
         </h1>
@@ -344,6 +499,128 @@ export default function Home() {
           >
             {isSeeding ? "Seeding..." : "Seed Firestore"}
           </button>
+        ) : null}
+        {coordinatorStaff ? (
+          <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-zinc-950">Weekly Schedule Board</h2>
+                <p className="text-sm text-zinc-600">
+                  {formatRangeDate(weekStart)} - {formatRangeDate(weekEnd)} (UTC)
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWeekOffset((previous) => previous - 1)}
+                  className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-900 transition hover:border-zinc-950"
+                >
+                  Prev week
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeekOffset(0)}
+                  className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-900 transition hover:border-zinc-950"
+                >
+                  Current week
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeekOffset((previous) => previous + 1)}
+                  className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-900 transition hover:border-zinc-950"
+                >
+                  Next week
+                </button>
+                <span className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600">
+                  {directoryShifts.length} shifts loaded
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
+              {weekBoardDays.map((day) => (
+                <div
+                  key={day.dayKey}
+                  className="min-h-64 rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+                >
+                  <div className="flex items-center justify-between gap-2 border-b border-zinc-200 pb-3">
+                    <p className="text-sm font-semibold text-zinc-900">{day.label}</p>
+                    <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-zinc-600 ring-1 ring-zinc-200">
+                      {day.shifts.length}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-3">
+                    {day.shifts.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-zinc-300 bg-white p-3 text-xs text-zinc-500">
+                        No shifts scheduled.
+                      </p>
+                    ) : (
+                      day.shifts.map((shift) => {
+                        const coverageState = getShiftCoverageState(shift);
+                        const coverageStyles = getCoverageStyles(coverageState);
+                        const canAssign = coverageState === "gap";
+
+                        return (
+                          <article
+                            key={shift.id}
+                            onClick={canAssign ? () => handleOpenGapAssignment(shift) : undefined}
+                            className={`rounded-xl p-3 text-xs text-zinc-700 ${coverageStyles.card} ${
+                              canAssign ? "cursor-pointer transition hover:brightness-95" : ""
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <h3 className="font-semibold text-zinc-900">{shift.title}</h3>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${coverageStyles.badge}`}
+                              >
+                                {coverageState}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-zinc-600">
+                              {formatUtcTime(shift.startTime)} - {formatUtcTime(shift.endTime)}
+                            </p>
+                            <p className="mt-1 text-zinc-600">{shift.location}</p>
+                            <p className="mt-1 text-zinc-500">
+                              Assigned: {shift.assignedStaffIds.length}/{shift.requiredStaffCount}
+                            </p>
+                            {canAssign ? (
+                              <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-rose-700">
+                                Click to assign staff
+                              </p>
+                            ) : null}
+                            {shift.assignedStaffIds.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {shift.assignedStaffIds.slice(0, 3).map((staffId) => (
+                                  <span
+                                    key={staffId}
+                                    className="rounded-full bg-white px-2 py-0.5 text-[10px] text-zinc-700 ring-1 ring-zinc-200"
+                                  >
+                                    {staffNameById.get(staffId) ?? staffId}
+                                  </span>
+                                ))}
+                                {shift.assignedStaffIds.length > 3 ? (
+                                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-zinc-700 ring-1 ring-zinc-200">
+                                    +{shift.assignedStaffIds.length - 3} more
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </article>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+              <span className="font-medium text-zinc-700">Legend:</span>
+              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-800">filled</span>
+              <span className="rounded-full bg-rose-100 px-2.5 py-1 text-rose-800">gap</span>
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-800">pending</span>
+            </div>
+          </section>
         ) : null}
         {coordinatorStaff ? (
           <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
@@ -529,6 +806,85 @@ export default function Home() {
                     ))
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {selectedGapShift ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4">
+            <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-zinc-200">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-zinc-950">Assign Shift Coverage</h2>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    {selectedGapShift.title} · {formatUtcTime(selectedGapShift.startTime)} - {formatUtcTime(selectedGapShift.endTime)}
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    {selectedGapShift.location}
+                    {selectedGapShift.department ? ` | Unit: ${selectedGapShift.department}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCloseGapAssignment}
+                  className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition hover:border-zinc-950"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-6 rounded-2xl bg-zinc-100 p-4 text-sm text-zinc-700">
+                Remaining slots: {Math.max(0, selectedGapShift.requiredStaffCount - selectedGapShift.assignedStaffIds.length)}
+              </div>
+
+              <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+                {eligibleStaffForGap.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
+                    No eligible active staff found for this unit.
+                  </p>
+                ) : (
+                  eligibleStaffForGap.map((staff) => (
+                    <label
+                      key={staff.id}
+                      className="flex cursor-pointer items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3"
+                    >
+                      <input
+                        type="radio"
+                        name="assignmentStaff"
+                        value={staff.id}
+                        checked={selectedAssignmentStaffId === staff.id}
+                        onChange={(event) => setSelectedAssignmentStaffId(event.target.value)}
+                        className="mt-1"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-900">
+                          {staff.firstName} {staff.lastName}
+                        </p>
+                        <p className="text-xs text-zinc-600">
+                          {staff.role} · {staff.department ?? "Unassigned"}
+                        </p>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={handleCloseGapAssignment}
+                  className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-900 transition hover:border-zinc-950"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAssignToGap}
+                  disabled={!selectedAssignmentStaffId}
+                  className="rounded-full bg-zinc-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+                >
+                  Assign to shift
+                </button>
               </div>
             </div>
           </div>
