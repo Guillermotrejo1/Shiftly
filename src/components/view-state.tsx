@@ -145,3 +145,77 @@ export function HomeLoadingSkeleton() {
     </main>
   );
 }
+
+export function GapAlertsSkeleton() {
+  return (
+    <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-2">
+          <SkeletonLine className="h-6 w-48" />
+          <SkeletonLine className="h-4 w-64" />
+        </div>
+        <div className="flex items-center gap-2">
+          <SkeletonBlock className="h-6 w-24 rounded-full" />
+          <SkeletonBlock className="h-6 w-16 rounded-full" />
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <article
+            key={index}
+            className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <SkeletonLine className="h-5 w-40" />
+              <div className="flex items-center gap-1.5">
+                <SkeletonBlock className="h-6 w-16 rounded-full" />
+                <SkeletonBlock className="h-6 w-14 rounded-full" />
+              </div>
+            </div>
+            <SkeletonLine className="mt-3 h-4 w-56" />
+            <SkeletonLine className="mt-2 h-4 w-44" />
+            <SkeletonBlock className="mt-3 h-10 w-full" />
+            <SkeletonLine className="mt-3 h-3 w-40" />
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function StaffDirectorySkeleton() {
+  return (
+    <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-2">
+          <SkeletonLine className="h-6 w-44" />
+          <SkeletonLine className="h-4 w-56" />
+        </div>
+        <SkeletonBlock className="h-10 w-28 rounded-full" />
+      </div>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <SkeletonBlock className="h-20 w-full" />
+        <SkeletonBlock className="h-20 w-full" />
+      </div>
+
+      <div className="mt-6 space-y-3">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <article
+            key={index}
+            className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <SkeletonLine className="h-5 w-40" />
+              <SkeletonBlock className="h-6 w-24 rounded-full" />
+            </div>
+            <SkeletonLine className="mt-3 h-4 w-52" />
+            <SkeletonLine className="mt-2 h-4 w-60" />
+            <SkeletonBlock className="mt-4 h-9 w-24 rounded-full" />
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}

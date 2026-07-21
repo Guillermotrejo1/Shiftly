@@ -28,7 +28,12 @@ import {
 import { seedMockFirestore } from "@/lib/seedFirestore";
 import { wouldExceedWeeklyHoursThreshold } from "@/lib/overtime";
 import type { Shift, Staff } from "@/types/scheduling";
-import { AppErrorBoundary, HomeLoadingSkeleton } from "@/components/view-state";
+import {
+  AppErrorBoundary,
+  GapAlertsSkeleton,
+  HomeLoadingSkeleton,
+  StaffDirectorySkeleton,
+} from "@/components/view-state";
 
 type DirectoryStaff = Staff & { id: string };
 type AvailabilityFilter = "all" | "available" | "unavailable";
@@ -760,7 +765,7 @@ export default function Home() {
     }
   }
 
-  const showLoadingSkeleton = isAuthLoading || (coordinatorStaff && isDirectoryLoading);
+  const showLoadingSkeleton = isAuthLoading;
 
   return (
     <AppErrorBoundary
@@ -869,7 +874,9 @@ export default function Home() {
             </div>
 
             <div className="mt-4 space-y-3">
-              {gapAlertFeed.length === 0 ? (
+              {isDirectoryLoading ? (
+                <GapAlertsSkeleton />
+              ) : gapAlertFeed.length === 0 ? (
                 <p className="rounded-2xl bg-zinc-100 p-4 text-sm text-zinc-700">
                   No real-time gap alerts right now.
                 </p>
@@ -1115,9 +1122,7 @@ export default function Home() {
 
                 <div className="mt-6 space-y-3">
               {isDirectoryLoading ? (
-                <p className="rounded-2xl bg-zinc-100 p-4 text-sm text-zinc-700">
-                  Loading staff directory...
-                </p>
+                <StaffDirectorySkeleton />
               ) : filteredDirectoryStaff.length === 0 ? (
                 <p className="rounded-2xl bg-zinc-100 p-4 text-sm text-zinc-700">
                   No staff match the current filters.
