@@ -19,6 +19,7 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { auth, db } from "@/lib/firebase";
 import {
   getCoordinatorStaffByEmail,
@@ -27,6 +28,7 @@ import {
 import { seedMockFirestore } from "@/lib/seedFirestore";
 import { wouldExceedWeeklyHoursThreshold } from "@/lib/overtime";
 import type { Shift, Staff } from "@/types/scheduling";
+import { AppErrorBoundary, HomeLoadingSkeleton } from "@/components/view-state";
 
 type DirectoryStaff = Staff & { id: string };
 type AvailabilityFilter = "all" | "available" | "unavailable";
@@ -151,9 +153,6 @@ export default function Home() {
       : "Firebase setup is incomplete."
   );
   const [isSeeding, setIsSeeding] = useState(false);
-  const [directoryStaff, setDirectoryStaff] = useState<DirectoryStaff[]>([]);
-  const [directoryShifts, setDirectoryShifts] = useState<DirectoryShift[]>([]);
-  const [isDirectoryLoading, setIsDirectoryLoading] = useState(false);
   const [unitFilter, setUnitFilter] = useState("all");
   const [availabilityFilter, setAvailabilityFilter] =
     useState<AvailabilityFilter>("all");
@@ -176,6 +175,63 @@ export default function Home() {
   const [postShiftMode, setPostShiftMode] = useState<PostShiftMode>("gap");
   const [deletingShiftId, setDeletingShiftId] = useState("");
   const [nowMs, setNowMs] = useState(() => Date.now());
+
+  const queryClient = useQueryClient();
+
+  const directoryStaffQuery = useQuery<DirectoryStaff[]>({
+    queryKey: ["directory-staff", coordinatorStaff?.id ?? "none"],
+    enabled: !!coordinatorStaff && !!db,
+    queryFn: async () => {
+      const staffSnapshot = await getDocs(collection(db!, "staff"));
+
+      return staffSnapshot.docs
+        .map(mapStaffDocument)
+        .sort((a: DirectoryStaff, b: DirectoryStaff) =>
+          `${a.lastName} ${a.firstName}`.localeCompare(
+            `${b.lastName} ${b.firstName}`
+          )
+        );
+    },
+    staleTime: 60_000,
+  });
+
+  const directoryShiftsQuery = useQuery<DirectoryShift[]>({
+    queryKey: ["directory-shifts", coordinatorStaff?.id ?? "none"],
+    enabled: !!coordinatorStaff && !!db,
+    queryFn: async () => {
+      const shiftsSnapshot = await getDocs(collection(db!, "shifts"));
+
+      return shiftsSnapshot.docs
+        .map(mapShiftDocument)
+        .sort((a: DirectoryShift, b: DirectoryShift) =>
+          b.startTime.localeCompare(a.startTime)
+        );
+    },
+    staleTime: 15_000,
+  });
+
+  const directoryStaff = directoryStaffQuery.data ?? [];
+  const directoryShifts = directoryShiftsQuery.data ?? [];
+  const isDirectoryLoading =
+    directoryStaffQuery.isLoading || directoryShiftsQuery.isLoading;
+
+  const dataErrorStatus = directoryStaffQuery.error
+    ? `Staff directory failed to load: ${
+        directoryStaffQuery.error instanceof Error
+          ? directoryStaffQuery.error.message
+          : "Unable to load staff directory."
+      }`
+    : directoryShiftsQuery.error
+      ? `Shift load failed: ${
+          directoryShiftsQuery.error instanceof Error
+            ? directoryShiftsQuery.error.message
+            : "Unable to load shifts."
+        }`
+      : null;
+
+  if (dataErrorStatus) {
+    throw new Error(dataErrorStatus);
+  }
 
   const unitOptions = Array.from(
     new Set(directoryStaff.map((staff) => staff.department ?? "Unassigned"))
@@ -325,9 +381,9 @@ export default function Home() {
       }
 
       if (!user) {
-        setDirectoryStaff([]);
-          setDirectoryShifts([]);
-          setSelectedStaff(null);
+        queryClient.removeQueries({ queryKey: ["directory-staff"] });
+        queryClient.removeQueries({ queryKey: ["directory-shifts"] });
+        setSelectedStaff(null);
         setUnitFilter("all");
         setAvailabilityFilter("all");
         setStatus("Welcome to Shiftly. Sign in to continue.");
@@ -340,8 +396,8 @@ export default function Home() {
         const staff = await getCoordinatorStaffByEmail(user.email ?? "");
 
         if (!staff) {
-          setDirectoryStaff([]);
-          setDirectoryShifts([]);
+          queryClient.removeQueries({ queryKey: ["directory-staff"] });
+          queryClient.removeQueries({ queryKey: ["directory-shifts"] });
           setSelectedStaff(null);
           setUnitFilter("all");
           setAvailabilityFilter("all");
@@ -355,36 +411,12 @@ export default function Home() {
     });
 
     return unsubscribe;
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     if (!coordinatorStaff || !db) {
       return;
     }
-
-    void (async () => {
-      setIsDirectoryLoading(true);
-
-      try {
-        const staffSnapshot = await getDocs(collection(db, "staff"));
-
-        const staff = staffSnapshot.docs
-          .map(mapStaffDocument)
-          .sort((a: DirectoryStaff, b: DirectoryStaff) =>
-            `${a.lastName} ${a.firstName}`.localeCompare(
-              `${b.lastName} ${b.firstName}`
-            )
-          );
-
-        setDirectoryStaff(staff);
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Unable to load staff directory.";
-        setStatus(`Staff directory failed to load: ${message}`);
-      }
-    })();
 
     const unsubscribeShifts = onSnapshot(
       collection(db, "shifts"),
@@ -395,21 +427,22 @@ export default function Home() {
             b.startTime.localeCompare(a.startTime)
           );
 
-        setDirectoryShifts(shifts);
-        setIsDirectoryLoading(false);
+        queryClient.setQueryData(
+          ["directory-shifts", coordinatorStaff.id],
+          shifts
+        );
       },
       (error) => {
         const message =
           error instanceof Error ? error.message : "Unable to stream shifts.";
         setStatus(`Real-time shift feed failed: ${message}`);
-        setIsDirectoryLoading(false);
       }
     );
 
     return () => {
       unsubscribeShifts();
     };
-  }, [coordinatorStaff]);
+  }, [coordinatorStaff, queryClient]);
 
   async function handleCreateAccount() {
     if (!email || !password) {
@@ -580,14 +613,17 @@ export default function Home() {
 
       await setDoc(shiftRef, nextShift);
 
-      setDirectoryShifts((previousShifts) => {
+      queryClient.setQueryData<DirectoryShift[]>(
+        ["directory-shifts", coordinatorStaff.id],
+        (previousShifts: DirectoryShift[] = []) => {
         const mergedShifts = [nextShift, ...previousShifts];
         const uniqueShifts = Array.from(
           new Map(mergedShifts.map((shift) => [shift.id, shift])).values()
         );
 
         return uniqueShifts.sort((a, b) => b.startTime.localeCompare(a.startTime));
-      });
+      }
+      );
 
       setStatus(
         `Posted shift "${nextShift.title}" for ${formatRangeDate(startDate)}.`
@@ -620,8 +656,10 @@ export default function Home() {
 
     try {
       await deleteDoc(doc(db, "shifts", shift.id));
-      setDirectoryShifts((previousShifts) =>
-        previousShifts.filter((existingShift) => existingShift.id !== shift.id)
+      queryClient.setQueryData<DirectoryShift[]>(
+        ["directory-shifts", coordinatorStaff.id],
+        (previousShifts: DirectoryShift[] = []) =>
+          previousShifts.filter((existingShift) => existingShift.id !== shift.id)
       );
 
       if (selectedGapShift?.id === shift.id) {
@@ -686,27 +724,29 @@ export default function Home() {
         });
       });
 
-      setDirectoryShifts((previousShifts) =>
-        previousShifts.map((shift) => {
-          if (shift.id !== selectedGapShift.id) {
-            return shift;
-          }
+      queryClient.setQueryData<DirectoryShift[]>(
+        ["directory-shifts", coordinatorStaff.id],
+        (previousShifts: DirectoryShift[] = []) =>
+          previousShifts.map((shift) => {
+            if (shift.id !== selectedGapShift.id) {
+              return shift;
+            }
 
-          const hasStaffAlready = shift.assignedStaffIds.includes(assignedStaffId);
-          const nextAssignedStaffIds = hasStaffAlready
-            ? shift.assignedStaffIds
-            : [...shift.assignedStaffIds, assignedStaffId];
+            const hasStaffAlready = shift.assignedStaffIds.includes(assignedStaffId);
+            const nextAssignedStaffIds = hasStaffAlready
+              ? shift.assignedStaffIds
+              : [...shift.assignedStaffIds, assignedStaffId];
 
-          return {
-            ...shift,
-            assignedStaffIds: nextAssignedStaffIds,
-            status:
-              nextAssignedStaffIds.length >= shift.requiredStaffCount
-                ? "assigned"
-                : shift.status,
-            updatedAt: new Date().toISOString(),
-          };
-        })
+            return {
+              ...shift,
+              assignedStaffIds: nextAssignedStaffIds,
+              status:
+                nextAssignedStaffIds.length >= shift.requiredStaffCount
+                  ? "assigned"
+                  : shift.status,
+              updatedAt: new Date().toISOString(),
+            };
+          })
       );
 
       const assignedStaffName =
@@ -720,13 +760,24 @@ export default function Home() {
     }
   }
 
+  const showLoadingSkeleton = isAuthLoading || (coordinatorStaff && isDirectoryLoading);
+
   return (
+    <AppErrorBoundary
+      title="Shiftly dashboard failed"
+      description="Refresh the page to try loading the dashboard again."
+    >
+      {showLoadingSkeleton ? (
+        <HomeLoadingSkeleton />
+      ) : (
     <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-8">
       <div className="w-full max-w-7xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
         <h1 className="text-3xl font-semibold text-zinc-950">
           Shiftly
         </h1>
-        <p className="mt-4 text-base leading-7 text-zinc-600">{status}</p>
+        <p className="mt-4 text-base leading-7 text-zinc-600">
+          {status}
+        </p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-medium text-zinc-900">
             Email
@@ -1454,5 +1505,7 @@ export default function Home() {
         ) : null}
       </div>
     </main>
+      )}
+    </AppErrorBoundary>
   );
 }

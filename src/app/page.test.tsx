@@ -108,6 +108,11 @@ const mockShiftRecords = [
   },
 ];
 
+const mockQueryClient = {
+  removeQueries: jest.fn(),
+  setQueryData: jest.fn(),
+};
+
 jest.mock("firebase/auth", () => ({
   createUserWithEmailAndPassword: jest.fn(),
   onAuthStateChanged: jest.fn((auth, callback) => {
@@ -118,8 +123,34 @@ jest.mock("firebase/auth", () => ({
   signOut: jest.fn(),
 }));
 
+jest.mock("@tanstack/react-query", () => ({
+  useQuery: jest.fn((options: { queryKey: [string, string] }) => {
+    if (options.queryKey[0] === "directory-staff") {
+      return {
+        data: mockStaffRecords,
+        error: null,
+        isLoading: false,
+      };
+    }
+
+    return {
+      data: mockShiftRecords,
+      error: null,
+      isLoading: false,
+    };
+  }),
+  useQueryClient: jest.fn(() => mockQueryClient),
+}));
+
 jest.mock("firebase/firestore", () => ({
   collection: jest.fn((db, name) => ({ db, name })),
+  onSnapshot: jest.fn((collectionRef, next) => {
+    next({
+      docs: [],
+    });
+
+    return jest.fn();
+  }),
   getDocs: jest
     .fn()
     .mockResolvedValueOnce({

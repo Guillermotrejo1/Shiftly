@@ -12,6 +12,10 @@ import {
   getCoordinatorStaffByEmail,
   type CoordinatorStaff,
 } from "@/lib/coordinatorAuth";
+import {
+  AppErrorBoundary,
+  CoordinatorLoadingSkeleton,
+} from "@/components/view-state";
 
 export default function CoordinatorPage() {
   const [email, setEmail] = useState("");
@@ -112,74 +116,81 @@ export default function CoordinatorPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-8">
-      <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
-        <h1 className="text-3xl font-semibold text-zinc-950">
-          Coordinator View
-        </h1>
-        <p className="mt-4 text-base leading-7 text-zinc-600">{status}</p>
+    <AppErrorBoundary
+      title="Coordinator view failed"
+      description="Refresh the page to try loading the coordinator view again."
+    >
+      {isAuthLoading ? (
+        <CoordinatorLoadingSkeleton />
+      ) : (
+        <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-8">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
+            <h1 className="text-3xl font-semibold text-zinc-950">
+              Coordinator View
+            </h1>
+            <p className="mt-4 text-base leading-7 text-zinc-600">{status}</p>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-zinc-900">
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
-              placeholder="maya.patel@shiftly.dev"
-              autoComplete="email"
-            />
-          </label>
-          <label className="text-sm font-medium text-zinc-900">
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
-              placeholder="At least 6 characters"
-              autoComplete="current-password"
-            />
-          </label>
-        </div>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-medium text-zinc-900">
+                Email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                  placeholder="maya.patel@shiftly.dev"
+                  autoComplete="email"
+                />
+              </label>
+              <label className="text-sm font-medium text-zinc-900">
+                Password
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                  placeholder="At least 6 characters"
+                  autoComplete="current-password"
+                />
+              </label>
+            </div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={handleSignIn}
-            disabled={isSubmitting || isAuthLoading || !(auth && db)}
-            className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
-          >
-            Sign in
-          </button>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={isSubmitting || isAuthLoading || !currentUser}
-            className="rounded-full border border-zinc-300 px-5 py-3 text-sm font-medium text-zinc-900 transition hover:border-zinc-950 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
-          >
-            Sign out
-          </button>
-        </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleSignIn}
+                disabled={isSubmitting || isAuthLoading || !(auth && db)}
+                className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={isSubmitting || isAuthLoading || !currentUser}
+                className="rounded-full border border-zinc-300 px-5 py-3 text-sm font-medium text-zinc-900 transition hover:border-zinc-950 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
+              >
+                Sign out
+              </button>
+            </div>
 
-        <div className="mt-4 rounded-2xl bg-zinc-100 p-4 text-sm leading-6 text-zinc-700">
-          <p>
-            {isAuthLoading
-              ? "Checking auth session..."
-              : coordinatorStaff
-                ? `Authorized coordinator: ${coordinatorStaff.email}`
-                : currentUser
-                  ? `Signed in as ${currentUser.email}, but coordinator access is not approved.`
-                  : "No user is signed in."}
-          </p>
-        </div>
+            <div className="mt-4 rounded-2xl bg-zinc-100 p-4 text-sm leading-6 text-zinc-700">
+              <p>
+                {coordinatorStaff
+                  ? `Authorized coordinator: ${coordinatorStaff.email}`
+                  : currentUser
+                    ? `Signed in as ${currentUser.email}, but coordinator access is not approved.`
+                    : "No user is signed in."}
+              </p>
+            </div>
 
-        <div className="mt-8 rounded-2xl bg-zinc-100 p-6 text-sm leading-6 text-zinc-700">
-          <p>This route is coordinator-only.</p>
-          <p>Use the account seeded as staff_001 or any Firestore staff doc with role coordinator.</p>
-        </div>
-      </div>
-    </main>
+            <div className="mt-8 rounded-2xl bg-zinc-100 p-6 text-sm leading-6 text-zinc-700">
+              <p>This route is coordinator-only.</p>
+              <p>Use the account seeded as staff_001 or any Firestore staff doc with role coordinator.</p>
+            </div>
+          </div>
+        </main>
+      )}
+    </AppErrorBoundary>
   );
 }
