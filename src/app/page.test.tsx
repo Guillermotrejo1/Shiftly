@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { axe, toHaveNoViolations } from "jest-axe";
 import Home from "./page";
+
+expect.extend(toHaveNoViolations);
 
 const mockCoordinatorStaff = {
   id: "staff_001",
@@ -399,5 +402,28 @@ describe("Schedule Board keyboard navigation", () => {
     await waitFor(() => {
       expect(firstCell).toHaveAttribute("tabindex", "0");
     });
+  });
+});
+
+describe("Accessibility", () => {
+  it("has no critical axe violations", async () => {
+    const { container } = render(<Home />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Weekly Schedule Board")).toBeInTheDocument();
+    });
+
+    const results = await axe(container, {
+      rules: {
+        region: { enabled: false },
+      },
+    });
+
+    const criticalViolations = results.violations.filter(
+      (violation: { impact?: string | null }) =>
+        violation.impact === "critical"
+    );
+
+    expect(criticalViolations).toEqual([]);
   });
 });
