@@ -42,6 +42,22 @@ type DirectoryShift = Shift & { id: string };
 type ShiftCoverageState = "filled" | "gap" | "pending";
 type PostShiftMode = "gap" | "pending";
 type DirectoryCallOut = CallOut;
+type CallOutAuditAction = "reported" | "note_added";
+
+type CallOutAuditEntry = {
+  id: string;
+  action: CallOutAuditAction;
+  actorName: string;
+  timestamp: string;
+  detail: string;
+};
+
+type DirectoryCallOutRecord = DirectoryCallOut & {
+  shiftTitle: string;
+  staffName: string;
+  loggedByName: string;
+  auditTrail: CallOutAuditEntry[];
+};
 
 function getStartOfWeekLocal(baseDate = new Date()) {
   const result = new Date(baseDate);
@@ -185,7 +201,7 @@ export default function Home() {
   const [callOutReason, setCallOutReason] = useState("");
   const [callOutNotes, setCallOutNotes] = useState("");
   const [callOutError, setCallOutError] = useState<string | null>(null);
-  const [callOutFeed, setCallOutFeed] = useState<DirectoryCallOut[]>([]);
+  const [callOutFeed, setCallOutFeed] = useState<DirectoryCallOutRecord[]>([]);
   const [deletingShiftId, setDeletingShiftId] = useState("");
   const [nowMs, setNowMs] = useState(() => Date.now());
   const callOutIdCounterRef = useRef(0);
@@ -837,20 +853,46 @@ export default function Home() {
     }
 
     callOutIdCounterRef.current += 1;
+    const entryId = `callout_${callOutIdCounterRef.current}`;
+    const reportedAtIso = new Date().toISOString();
+    const coordinatorName = `${coordinatorStaff.firstName} ${coordinatorStaff.lastName}`;
+    const staffName = staffNameById.get(callOutStaffId) ?? callOutStaffId;
 
-    const entry: DirectoryCallOut = {
-      id: `callout_${callOutIdCounterRef.current}`,
+    const auditTrail: CallOutAuditEntry[] = [
+      {
+        id: `${entryId}_reported`,
+        action: "reported",
+        actorName: coordinatorName,
+        timestamp: reportedAtIso,
+        detail: `Marked ${staffName} as called out for ${selectedCallOutShift.title}.`,
+      },
+    ];
+
+    if (trimmedNotes) {
+      auditTrail.push({
+        id: `${entryId}_note_added`,
+        action: "note_added",
+        actorName: coordinatorName,
+        timestamp: reportedAtIso,
+        detail: "Added supporting notes for coverage context.",
+      });
+    }
+
+    const entry: DirectoryCallOutRecord = {
+      id: entryId,
       shiftId: selectedCallOutShift.id,
       staffId: callOutStaffId,
       reason: trimmedReason,
       status: "reported",
-      reportedAt: new Date().toISOString(),
+      reportedAt: reportedAtIso,
+      shiftTitle: selectedCallOutShift.title,
+      staffName,
+      loggedByName: coordinatorName,
+      auditTrail,
       ...(trimmedNotes ? { notes: trimmedNotes } : {}),
     };
 
-    const staffName = staffNameById.get(callOutStaffId) ?? callOutStaffId;
-
-    setCallOutFeed((previous) => [entry, ...previous].slice(0, 10));
+    setCallOutFeed((previous) => [entry, ...previous].slice(0, 25));
     setStatus(`Call-out logged for ${staffName} on ${selectedCallOutShift.title}.`);
     resetCallOutForm();
   }
@@ -1366,7 +1408,7 @@ export default function Home() {
             </form>
 
             <div className="mt-6 space-y-3">
-              <h3 className="text-sm font-semibold text-zinc-900">Recent call-outs</h3>
+              <h3 className="text-sm font-semibold text-zinc-900">Call-out history</h3>
               {callOutFeed.length === 0 ? (
                 <p className="rounded-2xl bg-zinc-100 p-4 text-sm text-zinc-700">
                   No call-outs logged yet.
@@ -1374,13 +1416,42 @@ export default function Home() {
               ) : (
                 callOutFeed.map((entry) => (
                   <article key={entry.id} className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
-                    <p className="text-sm font-medium text-zinc-900">
-                      {staffNameById.get(entry.staffId) ?? entry.staffId} · {entry.status}
-                    </p>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-zinc-900">
+                        {entry.staffName} · {entry.status}
+                      </p>
+                      <span className="rounded-full bg-zinc-200 px-2.5 py-1 text-xs text-zinc-700">
+                        {entry.shiftTitle}
+                      </span>
+                    </div>
                     <p className="mt-1 text-sm text-zinc-700">{entry.reason}</p>
+                    {entry.notes ? (
+                      <p className="mt-2 rounded-lg bg-white px-2.5 py-1.5 text-xs text-zinc-700 ring-1 ring-zinc-200">
+                        Notes: {entry.notes}
+                      </p>
+                    ) : null}
                     <p className="mt-1 text-xs text-zinc-600">
                       Reported {new Date(entry.reportedAt).toLocaleString()}
                     </p>
+
+                    <div className="mt-3 rounded-xl bg-white p-3 ring-1 ring-zinc-200">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                        Audit trail
+                      </p>
+                      <ul className="mt-2 space-y-2">
+                        {entry.auditTrail.map((auditEvent) => (
+                          <li key={auditEvent.id} className="rounded-lg bg-zinc-50 p-2">
+                            <p className="text-xs font-medium text-zinc-800">
+                              {auditEvent.action === "reported" ? "Reported" : "Note Added"}
+                            </p>
+                            <p className="mt-0.5 text-xs text-zinc-700">{auditEvent.detail}</p>
+                            <p className="mt-1 text-[11px] text-zinc-500">
+                              {auditEvent.actorName} · {new Date(auditEvent.timestamp).toLocaleString()}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </article>
                 ))
               )}
