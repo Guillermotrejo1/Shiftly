@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import Home from "./page";
 
 const mockCoordinatorStaff = {
@@ -368,5 +368,36 @@ describe("Call-Out Log form", () => {
     });
 
     expect(screen.getByText(reason)).toBeInTheDocument();
+  });
+});
+
+describe("Schedule Board keyboard navigation", () => {
+  it("supports arrow key navigation between day cells", async () => {
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Weekly Schedule Board")).toBeInTheDocument();
+    });
+
+    const grid = screen.getByRole("grid", { name: "Weekly schedule board" });
+    const cells = within(grid).getAllByRole("gridcell");
+
+    expect(cells).toHaveLength(7);
+
+    const firstCell = cells[0] as HTMLElement;
+    const secondCell = cells[1] as HTMLElement;
+
+    expect(firstCell).toHaveAttribute("tabindex", "0");
+    expect(secondCell).toHaveAttribute("tabindex", "-1");
+
+    fireEvent.keyDown(firstCell, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(secondCell).toHaveAttribute("tabindex", "0");
+    });
+
+    fireEvent.keyDown(secondCell, { key: "ArrowLeft" });
+    await waitFor(() => {
+      expect(firstCell).toHaveAttribute("tabindex", "0");
+    });
   });
 });

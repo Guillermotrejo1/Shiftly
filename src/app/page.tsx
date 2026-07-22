@@ -202,9 +202,11 @@ export default function Home() {
   const [callOutNotes, setCallOutNotes] = useState("");
   const [callOutError, setCallOutError] = useState<string | null>(null);
   const [callOutFeed, setCallOutFeed] = useState<DirectoryCallOutRecord[]>([]);
+  const [activeScheduleCellIndex, setActiveScheduleCellIndex] = useState(0);
   const [deletingShiftId, setDeletingShiftId] = useState("");
   const [nowMs, setNowMs] = useState(() => Date.now());
   const callOutIdCounterRef = useRef(0);
+  const scheduleBoardCellRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const queryClient = useQueryClient();
 
@@ -394,6 +396,51 @@ export default function Home() {
         .sort((a, b) => a.startTime.localeCompare(b.startTime)),
     };
   });
+
+  function focusScheduleCell(index: number) {
+    const totalCells = weekBoardDays.length;
+    if (totalCells === 0) {
+      return;
+    }
+
+    const normalizedIndex = (index + totalCells) % totalCells;
+    setActiveScheduleCellIndex(normalizedIndex);
+    scheduleBoardCellRefs.current[normalizedIndex]?.focus();
+  }
+
+  function handleScheduleCellKeyDown(
+    event: React.KeyboardEvent<HTMLDivElement>,
+    cellIndex: number
+  ) {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      focusScheduleCell(cellIndex + 1);
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      focusScheduleCell(cellIndex - 1);
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const nextIndex = cellIndex + 7;
+      if (nextIndex < weekBoardDays.length) {
+        focusScheduleCell(nextIndex);
+      }
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      const nextIndex = cellIndex - 7;
+      if (nextIndex >= 0) {
+        focusScheduleCell(nextIndex);
+      }
+    }
+  }
 
   function mapStaffDocument(snapshot: QueryDocumentSnapshot<DocumentData>) {
     const staff = snapshot.data() as Staff;
@@ -1094,11 +1141,26 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
-              {weekBoardDays.map((day) => (
+            <div
+              role="grid"
+              aria-label="Weekly schedule board"
+              aria-colcount={weekBoardDays.length}
+              aria-rowcount={1}
+            >
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-7" role="row">
+              {weekBoardDays.map((day, index) => (
                 <div
                   key={day.dayKey}
-                  className="min-h-64 rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+                  ref={(element) => {
+                    scheduleBoardCellRefs.current[index] = element;
+                  }}
+                  role="gridcell"
+                  aria-colindex={index + 1}
+                  aria-rowindex={1}
+                  tabIndex={activeScheduleCellIndex === index ? 0 : -1}
+                  onFocus={() => setActiveScheduleCellIndex(index)}
+                  onKeyDown={(event) => handleScheduleCellKeyDown(event, index)}
+                  className="min-h-64 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 outline-none focus-visible:ring-2 focus-visible:ring-zinc-950"
                 >
                   <div className="flex items-center justify-between gap-2 border-b border-zinc-200 pb-3">
                     <p className="text-sm font-semibold text-zinc-900">{day.label}</p>
@@ -1188,6 +1250,7 @@ export default function Home() {
                   </div>
                 </div>
               ))}
+              </div>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-zinc-600">
               <span className="font-medium text-zinc-700">Legend:</span>
