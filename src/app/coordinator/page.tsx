@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   onAuthStateChanged,
@@ -128,6 +129,17 @@ export default function CoordinatorPage() {
             <h1 className="text-3xl font-semibold text-zinc-950">
               Coordinator View
             </h1>
+            <div className="mt-4 flex flex-wrap gap-2 text-sm">
+              <Link href="/" className="rounded-full border border-zinc-300 px-4 py-2 text-zinc-900 transition hover:border-zinc-900">
+                Dashboard
+              </Link>
+              <Link href="/manager" className="rounded-full border border-zinc-300 px-4 py-2 text-zinc-900 transition hover:border-zinc-900">
+                Manager
+              </Link>
+              <Link href="/staff" className="rounded-full border border-zinc-300 px-4 py-2 text-zinc-900 transition hover:border-zinc-900">
+                Staff
+              </Link>
+            </div>
             <p className="mt-4 text-base leading-7 text-zinc-600">{status}</p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
