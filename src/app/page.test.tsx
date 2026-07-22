@@ -310,3 +310,63 @@ describe("Staff Directory filters", () => {
     expect(screen.queryByText("Jordan Lee")).not.toBeInTheDocument();
   });
 });
+
+describe("Call-Out Log form", () => {
+  it("shows validation errors for missing and short inputs", async () => {
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Call-Out Log")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Log call-out" }));
+    expect(screen.getByText("Select a shift for the call-out.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Call-out shift"), {
+      target: { value: "shift_001" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Log call-out" }));
+    expect(screen.getByText("Select the staff member calling out.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Staff member"), {
+      target: { value: "staff_001" },
+    });
+    fireEvent.change(screen.getByLabelText("Reason"), {
+      target: { value: "Sick" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Log call-out" }));
+    expect(screen.getByText("Enter a reason with at least 8 characters.")).toBeInTheDocument();
+  });
+
+  it("logs a call-out when the form is valid", async () => {
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Call-Out Log")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Call-out shift"), {
+      target: { value: "shift_001" },
+    });
+    fireEvent.change(screen.getByLabelText("Staff member"), {
+      target: { value: "staff_001" },
+    });
+
+    const reason = "Fever symptoms and unable to complete the shift.";
+    fireEvent.change(screen.getByLabelText("Reason"), {
+      target: { value: reason },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Log call-out" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Call-out logged for Maya Patel on Morning Coverage.")
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+  });
+});

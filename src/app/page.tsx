@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -34,12 +34,14 @@ import {
   HomeLoadingSkeleton,
   StaffDirectorySkeleton,
 } from "@/components/view-state";
+import type { CallOut } from "@/types/scheduling";
 
 type DirectoryStaff = Staff & { id: string };
 type AvailabilityFilter = "all" | "available" | "unavailable";
 type DirectoryShift = Shift & { id: string };
 type ShiftCoverageState = "filled" | "gap" | "pending";
 type PostShiftMode = "gap" | "pending";
+type DirectoryCallOut = CallOut;
 
 function getStartOfWeekLocal(baseDate = new Date()) {
   const result = new Date(baseDate);
@@ -178,8 +180,15 @@ export default function Home() {
   const [postShiftRequiredCount, setPostShiftRequiredCount] = useState(2);
   const [postShiftNotes, setPostShiftNotes] = useState("");
   const [postShiftMode, setPostShiftMode] = useState<PostShiftMode>("gap");
+  const [callOutShiftId, setCallOutShiftId] = useState("");
+  const [callOutStaffId, setCallOutStaffId] = useState("");
+  const [callOutReason, setCallOutReason] = useState("");
+  const [callOutNotes, setCallOutNotes] = useState("");
+  const [callOutError, setCallOutError] = useState<string | null>(null);
+  const [callOutFeed, setCallOutFeed] = useState<DirectoryCallOut[]>([]);
   const [deletingShiftId, setDeletingShiftId] = useState("");
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const callOutIdCounterRef = useRef(0);
 
   const queryClient = useQueryClient();
 
@@ -326,6 +335,20 @@ export default function Home() {
       (a, b) =>
         new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
     );
+
+  const callOutShiftOptions = directoryShifts
+    .filter((shift) => shift.assignedStaffIds.length > 0)
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+  const selectedCallOutShift = callOutShiftOptions.find(
+    (shift) => shift.id === callOutShiftId
+  );
+
+  const callOutStaffOptions = selectedCallOutShift
+    ? directoryStaff.filter((staff) =>
+        selectedCallOutShift.assignedStaffIds.includes(staff.id)
+      )
+    : [];
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -765,6 +788,73 @@ export default function Home() {
     }
   }
 
+  function resetCallOutForm() {
+    setCallOutShiftId("");
+    setCallOutStaffId("");
+    setCallOutReason("");
+    setCallOutNotes("");
+    setCallOutError(null);
+  }
+
+  function handleSubmitCallOut(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!coordinatorStaff) {
+      setCallOutError("Only a coordinator can log call-outs.");
+      return;
+    }
+
+    if (!callOutShiftId) {
+      setCallOutError("Select a shift for the call-out.");
+      return;
+    }
+
+    if (!callOutStaffId) {
+      setCallOutError("Select the staff member calling out.");
+      return;
+    }
+
+    const trimmedReason = callOutReason.trim();
+    if (trimmedReason.length < 8) {
+      setCallOutError("Enter a reason with at least 8 characters.");
+      return;
+    }
+
+    const trimmedNotes = callOutNotes.trim();
+    if (trimmedNotes.length > 280) {
+      setCallOutError("Notes must be 280 characters or fewer.");
+      return;
+    }
+
+    if (!selectedCallOutShift) {
+      setCallOutError("Selected shift is no longer available.");
+      return;
+    }
+
+    if (!selectedCallOutShift.assignedStaffIds.includes(callOutStaffId)) {
+      setCallOutError("Selected staff member is not assigned to this shift.");
+      return;
+    }
+
+    callOutIdCounterRef.current += 1;
+
+    const entry: DirectoryCallOut = {
+      id: `callout_${callOutIdCounterRef.current}`,
+      shiftId: selectedCallOutShift.id,
+      staffId: callOutStaffId,
+      reason: trimmedReason,
+      status: "reported",
+      reportedAt: new Date().toISOString(),
+      ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+    };
+
+    const staffName = staffNameById.get(callOutStaffId) ?? callOutStaffId;
+
+    setCallOutFeed((previous) => [entry, ...previous].slice(0, 10));
+    setStatus(`Call-out logged for ${staffName} on ${selectedCallOutShift.title}.`);
+    resetCallOutForm();
+  }
+
   const showLoadingSkeleton = isAuthLoading;
 
   return (
@@ -1168,6 +1258,133 @@ export default function Home() {
                 Directory collapsed. Expand to view staff filters and profiles.
               </p>
             )}
+          </section>
+        ) : null}
+        {coordinatorStaff ? (
+          <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-zinc-950">Call-Out Log</h2>
+                <p className="text-sm text-zinc-600">
+                  Capture call-outs with validation and keep a recent timeline.
+                </p>
+              </div>
+              <span className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600">
+                {callOutFeed.length} logged
+              </span>
+            </div>
+
+            <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={handleSubmitCallOut}>
+              <label className="text-sm font-medium text-zinc-900">
+                Call-out shift
+                <select
+                  value={callOutShiftId}
+                  onChange={(event) => {
+                    setCallOutShiftId(event.target.value);
+                    setCallOutStaffId("");
+                    setCallOutError(null);
+                  }}
+                  className="mt-2 w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                >
+                  <option value="">Select a shift</option>
+                  {callOutShiftOptions.map((shift) => (
+                    <option key={shift.id} value={shift.id}>
+                      {shift.title} - {formatWeekdayLabel(new Date(shift.startTime))}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm font-medium text-zinc-900">
+                Staff member
+                <select
+                  value={callOutStaffId}
+                  onChange={(event) => {
+                    setCallOutStaffId(event.target.value);
+                    setCallOutError(null);
+                  }}
+                  className="mt-2 w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                >
+                  <option value="">Select staff</option>
+                  {callOutStaffOptions.map((staff) => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.firstName} {staff.lastName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm font-medium text-zinc-900 sm:col-span-2">
+                Reason
+                <textarea
+                  value={callOutReason}
+                  onChange={(event) => {
+                    setCallOutReason(event.target.value);
+                    setCallOutError(null);
+                  }}
+                  rows={3}
+                  className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                  placeholder="Brief reason for this call-out"
+                />
+              </label>
+
+              <label className="text-sm font-medium text-zinc-900 sm:col-span-2">
+                Notes (optional)
+                <textarea
+                  value={callOutNotes}
+                  onChange={(event) => {
+                    setCallOutNotes(event.target.value);
+                    setCallOutError(null);
+                  }}
+                  rows={2}
+                  className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                  placeholder="Optional context for coverage"
+                />
+              </label>
+
+              {callOutError ? (
+                <p className="sm:col-span-2 rounded-2xl bg-rose-100 p-3 text-sm text-rose-800" role="alert">
+                  {callOutError}
+                </p>
+              ) : null}
+
+              <div className="sm:col-span-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={resetCallOutForm}
+                  className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-900 transition hover:border-zinc-950"
+                >
+                  Reset
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-full bg-zinc-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800"
+                >
+                  Log call-out
+                </button>
+              </div>
+            </form>
+
+            <div className="mt-6 space-y-3">
+              <h3 className="text-sm font-semibold text-zinc-900">Recent call-outs</h3>
+              {callOutFeed.length === 0 ? (
+                <p className="rounded-2xl bg-zinc-100 p-4 text-sm text-zinc-700">
+                  No call-outs logged yet.
+                </p>
+              ) : (
+                callOutFeed.map((entry) => (
+                  <article key={entry.id} className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
+                    <p className="text-sm font-medium text-zinc-900">
+                      {staffNameById.get(entry.staffId) ?? entry.staffId} · {entry.status}
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-700">{entry.reason}</p>
+                    <p className="mt-1 text-xs text-zinc-600">
+                      Reported {new Date(entry.reportedAt).toLocaleString()}
+                    </p>
+                  </article>
+                ))
+              )}
+            </div>
           </section>
         ) : null}
         {selectedStaff ? (
