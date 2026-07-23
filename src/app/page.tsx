@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -161,6 +162,14 @@ function getCoverageStyles(state: ShiftCoverageState) {
     card: "bg-amber-50 ring-1 ring-amber-200",
     badge: "bg-amber-100 text-amber-800",
   };
+}
+
+function ModalLayer({ children }: { children: ReactNode }) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(children, document.body);
 }
 
 export default function Home() {
@@ -1579,7 +1588,8 @@ export default function Home() {
         ) : null}
         </div>
         {selectedStaff ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4">
+          <ModalLayer>
+            <div className="fixed inset-0 z-70 flex items-center justify-center bg-zinc-950/60 p-4">
             <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-zinc-200">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1676,10 +1686,12 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+          </ModalLayer>
         ) : null}
         {selectedGapShift ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4">
+          <ModalLayer>
+            <div className="fixed inset-0 z-70 flex items-center justify-center bg-zinc-950/60 p-4">
             <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-zinc-200">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1782,10 +1794,12 @@ export default function Home() {
                 </button>
               </div>
             </div>
-          </div>
+            </div>
+          </ModalLayer>
         ) : null}
         {isPostShiftModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4">
+          <ModalLayer>
+            <div className="fixed inset-0 z-70 flex items-center justify-center bg-zinc-950/60 p-4">
             <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-zinc-200">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1914,7 +1928,8 @@ export default function Home() {
                 </button>
               </div>
             </div>
-          </div>
+            </div>
+          </ModalLayer>
         ) : null}
       </div>
     </main>
