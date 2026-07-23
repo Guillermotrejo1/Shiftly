@@ -178,7 +178,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [coordinatorStaff, setCoordinatorStaff] =
     useState<CoordinatorStaff | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(() => !!auth);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState(
     auth && db
@@ -474,8 +474,6 @@ export default function Home() {
     const firebaseAuth = auth;
 
     if (!firebaseAuth) {
-      setIsAuthLoading(false);
-      setStatus("Firebase setup is incomplete.");
       return;
     }
 
