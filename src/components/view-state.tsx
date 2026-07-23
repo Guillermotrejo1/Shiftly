@@ -43,12 +43,12 @@ export class AppErrorBoundary extends Component<
   override render() {
     if (this.state.hasError) {
       return (
-        <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-8">
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
-            <h1 className="text-3xl font-semibold text-zinc-950">
+        <main className="app-shell">
+          <div className="app-frame max-w-2xl">
+            <h1 className="view-title">
               {this.props.title}
             </h1>
-            <p className="mt-4 text-base leading-7 text-zinc-600">
+            <p className="view-subtitle mt-4 text-base leading-7">
               {this.props.description}
             </p>
             {this.state.error ? (
@@ -92,8 +92,8 @@ function SkeletonLine({ className = "" }: { className?: string }) {
 
 export function CoordinatorLoadingSkeleton() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-8">
-      <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
+    <main className="app-shell">
+      <div className="app-frame max-w-2xl">
         <SkeletonLine className="h-9 w-56" />
         <SkeletonLine className="mt-4 h-5 w-full max-w-xl" />
 
@@ -116,8 +116,8 @@ export function CoordinatorLoadingSkeleton() {
 
 export function HomeLoadingSkeleton() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-8">
-      <div className="w-full max-w-7xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
+    <main className="app-shell">
+      <div className="app-frame max-w-7xl">
         <SkeletonLine className="h-9 w-40" />
         <SkeletonLine className="mt-4 h-5 w-full max-w-2xl" />
 
@@ -148,7 +148,7 @@ export function HomeLoadingSkeleton() {
 
 export function GapAlertsSkeleton() {
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+    <section className="section-card p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-2">
           <SkeletonLine className="h-6 w-48" />
@@ -186,7 +186,7 @@ export function GapAlertsSkeleton() {
 
 export function StaffDirectorySkeleton() {
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+    <section className="section-card p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-2">
           <SkeletonLine className="h-6 w-44" />

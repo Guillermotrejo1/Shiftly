@@ -60,9 +60,9 @@ export default function AccessibleScheduleGrid({
   }
 
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-      <h2 className="text-xl font-semibold text-zinc-950">{title}</h2>
-      <p className="mt-1 text-sm text-zinc-600">
+    <section className="section-card p-6">
+      <h2 className="font-mono text-xl font-semibold text-zinc-950">{title}</h2>
+      <p className="view-subtitle mt-1 text-sm">
         Use left/right arrows to move across day columns.
       </p>
 
@@ -85,21 +85,21 @@ export default function AccessibleScheduleGrid({
               tabIndex={activeCellIndex === index ? 0 : -1}
               onFocus={() => setActiveCellIndex(index)}
               onKeyDown={(event) => handleCellKeyDown(event, index)}
-              className="min-h-44 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 outline-none focus-visible:ring-2 focus-visible:ring-zinc-950"
+              className="min-h-44 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 outline-none shadow-sm focus-visible:ring-2 focus-visible:ring-zinc-950"
             >
-              <p className="border-b border-zinc-200 pb-2 text-sm font-semibold text-zinc-900">
+              <p className="border-b border-zinc-200 pb-2 font-mono text-sm font-semibold text-zinc-900">
                 {cell.label}
               </p>
               <div className="mt-3 space-y-2">
                 {cell.items.length === 0 ? (
-                  <p className="rounded-lg bg-white p-2 text-xs text-zinc-500 ring-1 ring-zinc-200">
+                  <p className="rounded-lg bg-white/95 p-2 text-xs text-zinc-500 ring-1 ring-zinc-200">
                     No scheduled items.
                   </p>
                 ) : (
                   cell.items.map((item) => (
                     <p
                       key={item}
-                      className="rounded-lg bg-white p-2 text-xs text-zinc-700 ring-1 ring-zinc-200"
+                      className="rounded-lg bg-white/95 p-2 text-xs text-zinc-700 ring-1 ring-zinc-200"
                     >
                       {item}
                     </p>

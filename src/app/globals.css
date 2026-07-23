@@ -1,26 +1,169 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #edf7ff;
+  --foreground: #0c2138;
+  --surface: rgba(247, 252, 255, 0.9);
+  --surface-border: rgba(56, 109, 160, 0.34);
+  --brand: #0466c8;
+  --brand-soft: #00a7e1;
+  --accent: #7ae582;
+  --muted: #35536f;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-sora);
+  --font-mono: var(--font-space-mono);
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1200px 500px at -8% -12%, rgba(0, 167, 225, 0.28), transparent 68%),
+    radial-gradient(900px 420px at 104% 8%, rgba(122, 229, 130, 0.24), transparent 66%),
+    linear-gradient(145deg, #f5fbff 0%, #ebf5ff 42%, #e2efff 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sora), sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.app-frame {
+  width: 100%;
+  max-width: 88rem;
+  border-radius: 1.8rem;
+  border: 1px solid var(--surface-border);
+  background:
+    linear-gradient(150deg, rgba(248, 253, 255, 0.96), rgba(235, 247, 255, 0.9));
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 28px 66px rgba(22, 67, 113, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.7) inset;
+  padding: 2rem;
+  animation: rise-in 520ms cubic-bezier(0.2, 0.9, 0.32, 1.02);
+}
+
+.view-title {
+  font-family: var(--font-space-mono), monospace;
+  font-size: clamp(1.8rem, 2.2vw + 1rem, 2.8rem);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--brand);
+  text-transform: uppercase;
+}
+
+.view-subtitle {
+  color: var(--muted);
+}
+
+.nav-chip {
+  border-radius: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 36%, white);
+  background: linear-gradient(130deg, rgba(255, 255, 255, 0.92), rgba(228, 246, 255, 0.9));
+  color: #0b4f88;
+  padding: 0.54rem 0.95rem;
+  font-weight: 600;
+  transition: all 160ms ease;
+}
+
+.nav-chip:hover {
+  background: linear-gradient(130deg, rgba(255, 255, 255, 1), rgba(219, 242, 255, 0.96));
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 58%, white);
+  box-shadow: 0 10px 24px rgba(26, 96, 162, 0.18);
+}
+
+.section-card {
+  border-radius: 1.1rem;
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  box-shadow: 0 14px 34px rgba(29, 84, 134, 0.12);
+}
+
+.metric-card {
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--brand-soft) 35%, white);
+  background:
+    linear-gradient(145deg, rgba(247, 254, 255, 0.96), rgba(224, 248, 255, 0.9));
+  box-shadow: 0 12px 30px rgba(20, 108, 168, 0.13);
+}
+
+.control-rail {
+  border-radius: 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 26%, white);
+  background: linear-gradient(160deg, rgba(12, 75, 126, 0.94), rgba(7, 53, 92, 0.9));
+  color: #eaf7ff;
+  box-shadow: 0 16px 36px rgba(8, 55, 92, 0.34);
+  padding: 1rem;
+}
+
+.control-rail .view-subtitle {
+  color: rgba(222, 242, 255, 0.86);
+}
+
+.dashboard-matrix {
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (min-width: 1280px) {
+  .dashboard-matrix {
+    grid-template-columns: 21.5rem minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .dashboard-matrix > :nth-child(-n + 5) {
+    grid-column: 1;
+  }
+
+  .dashboard-matrix > :nth-child(n + 6) {
+    grid-column: 2;
+  }
+}
+
+.stagger > * {
+  animation: rise-in 460ms ease both;
+}
+
+.stagger > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.stagger > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.stagger > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 0.75rem;
+  }
+
+  .app-frame {
+    border-radius: 1.35rem;
+    padding: 1.25rem;
+  }
 }

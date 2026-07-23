@@ -955,103 +955,114 @@ export default function Home() {
       {showLoadingSkeleton ? (
         <HomeLoadingSkeleton />
       ) : (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-8">
-      <div className="w-full max-w-7xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
-        <h1 className="text-3xl font-semibold text-zinc-950">
+    <main className="app-shell">
+      <div className="app-frame stagger">
+        <div className="inline-flex w-fit items-center rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-900">
+          Live operations hub
+        </div>
+        <h1 className="view-title mt-3">
           Shiftly
         </h1>
         <div className="mt-4 flex flex-wrap gap-2 text-sm">
-          <Link href="/coordinator" className="rounded-full border border-zinc-300 px-4 py-2 text-zinc-900 transition hover:border-zinc-900">
+          <Link href="/coordinator" className="nav-chip">
             Coordinator view
           </Link>
-          <Link href="/manager" className="rounded-full border border-zinc-300 px-4 py-2 text-zinc-900 transition hover:border-zinc-900">
+          <Link href="/manager" className="nav-chip">
             Manager view
           </Link>
-          <Link href="/staff" className="rounded-full border border-zinc-300 px-4 py-2 text-zinc-900 transition hover:border-zinc-900">
+          <Link href="/staff" className="nav-chip">
             Staff view
           </Link>
         </div>
-        <p className="mt-4 text-base leading-7 text-zinc-600">
+        <p className="view-subtitle mt-4 text-base leading-7">
           {status}
         </p>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-zinc-900">
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              suppressHydrationWarning
-              className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
-              placeholder="spider@gmail.com"
-              autoComplete="email"
-            />
-          </label>
-          <label className="text-sm font-medium text-zinc-900">
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              suppressHydrationWarning
-              className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
-              placeholder="At least 6 characters"
-              autoComplete="current-password"
-            />
-          </label>
-        </div>
-        <div className="mt-6 flex flex-wrap gap-3">
-          {!currentUser && (
+        <div className="dashboard-matrix mt-8">
+          <section className="control-rail">
+            <p className="font-mono text-xs uppercase tracking-[0.18em] text-cyan-100/90">Identity access</p>
+            <div className="mt-3 grid gap-4 sm:grid-cols-1">
+              <label className="text-sm font-medium text-cyan-50">
+                Email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  suppressHydrationWarning
+                  className="mt-2 w-full rounded-2xl border border-cyan-300/50 bg-cyan-50/95 px-4 py-3 text-zinc-950 outline-none transition focus:border-emerald-300"
+                  placeholder="spider@gmail.com"
+                  autoComplete="email"
+                />
+              </label>
+              <label className="text-sm font-medium text-cyan-50">
+                Password
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  suppressHydrationWarning
+                  className="mt-2 w-full rounded-2xl border border-cyan-300/50 bg-cyan-50/95 px-4 py-3 text-zinc-950 outline-none transition focus:border-emerald-300"
+                  placeholder="At least 6 characters"
+                  autoComplete="current-password"
+                />
+              </label>
+            </div>
+          </section>
+
+          <div className="control-rail mt-0 flex flex-wrap gap-3">
+            {!currentUser && (
+              <button
+                type="button"
+                onClick={handleCreateAccount}
+                disabled={isSubmitting || isAuthLoading || !(auth && db)}
+                className="rounded-full bg-cyan-200 px-5 py-3 text-sm font-semibold text-cyan-950 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:bg-zinc-400"
+              >
+                {isSubmitting ? "Working..." : "Create account"}
+              </button>
+            )}
+            {!currentUser && (
+              <button
+                type="button"
+                onClick={handleSignIn}
+                disabled={isSubmitting || isAuthLoading || !(auth && db)}
+                className="rounded-full border border-cyan-200 px-5 py-3 text-sm font-semibold text-cyan-50 transition hover:border-cyan-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
+              >
+                Sign in
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleCreateAccount}
-              disabled={isSubmitting || isAuthLoading || !(auth && db)}
-              className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+              onClick={handleSignOut}
+              disabled={isSubmitting || isAuthLoading || !currentUser}
+              className="rounded-full border border-cyan-200 px-5 py-3 text-sm font-semibold text-cyan-50 transition hover:border-cyan-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
             >
-              {isSubmitting ? "Working..." : "Create account"}
+              Sign out
             </button>
-          )}
-          {!currentUser && (
-            <button
-              type="button"
-              onClick={handleSignIn}
-              disabled={isSubmitting || isAuthLoading || !(auth && db)}
-              className="rounded-full border border-zinc-300 px-5 py-3 text-sm font-medium text-zinc-900 transition hover:border-zinc-950 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
-            >
-              Sign in
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={isSubmitting || isAuthLoading || !currentUser}
-            className="rounded-full border border-zinc-300 px-5 py-3 text-sm font-medium text-zinc-900 transition hover:border-zinc-950 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
-          >
-            Sign out
-          </button>
-        </div>
-        <div className="mt-4 rounded-2xl bg-zinc-100 p-4 text-sm leading-6 text-zinc-700">
-          <p>{isAuthLoading ? "Checking auth session..." : currentUser ? `Current user: ${currentUser.email}` : "No user is signed in."}</p>
-        </div>
-        {coordinatorStaff ? (
-          <div className="mt-8 rounded-2xl bg-zinc-100 p-6 text-sm leading-6 text-zinc-700">
-            <p>This will write:</p>
-            <p>12 mock staff records into the staff collection.</p>
-            <p>14 mock shifts covering one full week into the shifts collection.</p>
           </div>
-        ) : null}
+
+          <div className="control-rail mt-0 text-sm leading-6">
+            <p>{isAuthLoading ? "Checking auth session..." : currentUser ? `Current user: ${currentUser.email}` : "No user is signed in."}</p>
+          </div>
+
+          {coordinatorStaff ? (
+            <div className="control-rail mt-0 p-6 text-sm leading-6">
+              <p>This will write:</p>
+              <p>12 mock staff records into the staff collection.</p>
+              <p>14 mock shifts covering one full week into the shifts collection.</p>
+            </div>
+          ) : null}
+
+          {coordinatorStaff ? (
+            <button
+              type="button"
+              onClick={handleSeed}
+              disabled={isSeeding || isSubmitting || !(auth && db)}
+              className="mt-0 rounded-full bg-emerald-300 px-5 py-3 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:bg-zinc-400"
+            >
+              {isSeeding ? "Seeding..." : "Seed Firestore"}
+            </button>
+          ) : null}
         {coordinatorStaff ? (
-          <button
-            type="button"
-            onClick={handleSeed}
-            disabled={isSeeding || isSubmitting || !(auth && db)}
-            className="mt-6 rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
-          >
-            {isSeeding ? "Seeding..." : "Seed Firestore"}
-          </button>
-        ) : null}
-        {coordinatorStaff ? (
-          <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
+          <section className="section-card mt-8 p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold text-zinc-950">Real-time Gap Alerts</h2>
               <div className="flex items-center gap-2">
@@ -1110,7 +1121,7 @@ export default function Home() {
           </section>
         ) : null}
         {coordinatorStaff ? (
-          <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
+          <section className="section-card mt-8 p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-zinc-950">Weekly Schedule Board</h2>
@@ -1172,7 +1183,7 @@ export default function Home() {
                   tabIndex={activeScheduleCellIndex === index ? 0 : -1}
                   onFocus={() => setActiveScheduleCellIndex(index)}
                   onKeyDown={(event) => handleScheduleCellKeyDown(event, index)}
-                  className="min-h-64 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 outline-none focus-visible:ring-2 focus-visible:ring-zinc-950"
+                  className="min-h-64 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 outline-none focus-visible:ring-2 focus-visible:ring-zinc-950"
                 >
                   <div className="flex items-center justify-between gap-2 border-b border-zinc-200 pb-3">
                     <p className="text-sm font-semibold text-zinc-900">{day.label}</p>
@@ -1273,7 +1284,7 @@ export default function Home() {
           </section>
         ) : null}
         {coordinatorStaff ? (
-          <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
+          <section className="section-card mt-8 p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-zinc-950">Staff Directory</h2>
@@ -1378,7 +1389,7 @@ export default function Home() {
           </section>
         ) : null}
         {coordinatorStaff ? (
-          <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6">
+          <section className="section-card mt-8 p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-zinc-950">Call-Out Log</h2>
@@ -1533,6 +1544,7 @@ export default function Home() {
             </div>
           </section>
         ) : null}
+        </div>
         {selectedStaff ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4">
             <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-zinc-200">

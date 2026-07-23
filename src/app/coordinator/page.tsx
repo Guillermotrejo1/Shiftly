@@ -124,81 +124,89 @@ export default function CoordinatorPage() {
       {isAuthLoading ? (
         <CoordinatorLoadingSkeleton />
       ) : (
-        <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-8">
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
-            <h1 className="text-3xl font-semibold text-zinc-950">
-              Coordinator View
-            </h1>
-            <div className="mt-4 flex flex-wrap gap-2 text-sm">
-              <Link href="/" className="rounded-full border border-zinc-300 px-4 py-2 text-zinc-900 transition hover:border-zinc-900">
-                Dashboard
-              </Link>
-              <Link href="/manager" className="rounded-full border border-zinc-300 px-4 py-2 text-zinc-900 transition hover:border-zinc-900">
-                Manager
-              </Link>
-              <Link href="/staff" className="rounded-full border border-zinc-300 px-4 py-2 text-zinc-900 transition hover:border-zinc-900">
-                Staff
-              </Link>
-            </div>
-            <p className="mt-4 text-base leading-7 text-zinc-600">{status}</p>
+        <main className="app-shell">
+          <div className="app-frame max-w-2xl">
+            <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+              <aside className="control-rail space-y-3">
+                <p className="font-mono text-xs uppercase tracking-[0.18em] text-cyan-100/90">Routes</p>
+                <div className="flex flex-col gap-2 text-sm">
+                  <Link href="/" className="nav-chip text-center">
+                    Dashboard
+                  </Link>
+                  <Link href="/manager" className="nav-chip text-center">
+                    Manager
+                  </Link>
+                  <Link href="/staff" className="nav-chip text-center">
+                    Staff
+                  </Link>
+                </div>
+              </aside>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <label className="text-sm font-medium text-zinc-900">
-                Email
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
-                  placeholder="maya.patel@shiftly.dev"
-                  autoComplete="email"
-                />
-              </label>
-              <label className="text-sm font-medium text-zinc-900">
-                Password
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
-                  placeholder="At least 6 characters"
-                  autoComplete="current-password"
-                />
-              </label>
-            </div>
+              <div>
+                <h1 className="view-title">
+                  Coordinator View
+                </h1>
+                <p className="view-subtitle mt-4 text-base leading-7">{status}</p>
 
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={handleSignIn}
-                disabled={isSubmitting || isAuthLoading || !(auth && db)}
-                className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
-              >
-                Sign in
-              </button>
-              <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={isSubmitting || isAuthLoading || !currentUser}
-                className="rounded-full border border-zinc-300 px-5 py-3 text-sm font-medium text-zinc-900 transition hover:border-zinc-950 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
-              >
-                Sign out
-              </button>
-            </div>
+                <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                  <label className="text-sm font-medium text-zinc-900">
+                    Email
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                      placeholder="maya.patel@shiftly.dev"
+                      autoComplete="email"
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-zinc-900">
+                    Password
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-zinc-300 px-4 py-3 text-zinc-950 outline-none transition focus:border-zinc-950"
+                      placeholder="At least 6 characters"
+                      autoComplete="current-password"
+                    />
+                  </label>
+                </div>
 
-            <div className="mt-4 rounded-2xl bg-zinc-100 p-4 text-sm leading-6 text-zinc-700">
-              <p>
-                {coordinatorStaff
-                  ? `Authorized coordinator: ${coordinatorStaff.email}`
-                  : currentUser
-                    ? `Signed in as ${currentUser.email}, but coordinator access is not approved.`
-                    : "No user is signed in."}
-              </p>
-            </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSignIn}
+                    disabled={isSubmitting || isAuthLoading || !(auth && db)}
+                    className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+                  >
+                    Sign in
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    disabled={isSubmitting || isAuthLoading || !currentUser}
+                    className="rounded-full border border-zinc-300 px-5 py-3 text-sm font-medium text-zinc-900 transition hover:border-zinc-950 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
+                  >
+                    Sign out
+                  </button>
+                </div>
 
-            <div className="mt-8 rounded-2xl bg-zinc-100 p-6 text-sm leading-6 text-zinc-700">
-              <p>This route is coordinator-only.</p>
-              <p>Use the account seeded as staff_001 or any Firestore staff doc with role coordinator.</p>
+                <div className="section-card mt-4 p-4 text-sm leading-6 text-zinc-700">
+                  <p>
+                    {coordinatorStaff
+                      ? `Authorized coordinator: ${coordinatorStaff.email}`
+                      : currentUser
+                        ? `Signed in as ${currentUser.email}, but coordinator access is not approved.`
+                        : "No user is signed in."}
+                  </p>
+                </div>
+
+                <div className="section-card mt-8 p-6 text-sm leading-6 text-zinc-700">
+                  <p>This route is coordinator-only.</p>
+                  <p>Use the account seeded as staff_001 or any Firestore staff doc with role coordinator.</p>
+                </div>
+              </div>
             </div>
           </div>
         </main>
