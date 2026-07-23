@@ -245,6 +245,12 @@ function buildMockShifts(staff: Staff[]): Shift[] {
 }
 
 export async function seedMockFirestore(coordinatorEmail: string) {
+  const firestore = db;
+
+  if (!firestore) {
+    throw new Error("Firebase setup is incomplete.");
+  }
+
   const coordinatorStaff = await getCoordinatorStaffByEmail(coordinatorEmail);
 
   if (!coordinatorStaff) {
@@ -253,15 +259,15 @@ export async function seedMockFirestore(coordinatorEmail: string) {
 
   const staff = buildMockStaff();
   const shifts = buildMockShifts(staff);
-  const batch = writeBatch(db);
+  const batch = writeBatch(firestore);
 
   for (const staffMember of staff) {
-    const staffRef = doc(collection(db, "staff"), staffMember.id);
+    const staffRef = doc(collection(firestore, "staff"), staffMember.id);
     batch.set(staffRef, staffMember);
   }
 
   for (const shift of shifts) {
-    const shiftRef = doc(collection(db, "shifts"), shift.id);
+    const shiftRef = doc(collection(firestore, "shifts"), shift.id);
     batch.set(shiftRef, shift);
   }
 

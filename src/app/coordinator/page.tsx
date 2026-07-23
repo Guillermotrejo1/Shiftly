@@ -33,12 +33,20 @@ export default function CoordinatorPage() {
   );
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const firebaseAuth = auth;
+
+    if (!firebaseAuth) {
+      setIsAuthLoading(false);
+      setStatus("Firebase setup is incomplete.");
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
       setCurrentUser(user);
       setCoordinatorStaff(null);
       setIsAuthLoading(false);
 
-      if (!auth || !db) {
+      if (!db) {
         setStatus("Firebase setup is incomplete.");
         return;
       }
@@ -56,7 +64,7 @@ export default function CoordinatorPage() {
 
           if (!staff) {
             setStatus("Access denied. This account is not a coordinator.");
-            await signOut(auth);
+            await signOut(firebaseAuth);
             return;
           }
 
@@ -70,7 +78,7 @@ export default function CoordinatorPage() {
               ? error.message
               : "Unable to verify coordinator access.";
           setStatus(`Coordinator verification failed: ${message}`);
-          await signOut(auth);
+          await signOut(firebaseAuth);
         }
       })();
     });
@@ -79,6 +87,13 @@ export default function CoordinatorPage() {
   }, []);
 
   async function handleSignIn() {
+    const firebaseAuth = auth;
+
+    if (!firebaseAuth) {
+      setStatus("Firebase setup is incomplete.");
+      return;
+    }
+
     if (!email || !password) {
       setStatus("Enter an email and password first.");
       return;
@@ -88,7 +103,7 @@ export default function CoordinatorPage() {
     setStatus("Signing in as coordinator...");
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(firebaseAuth, email, password);
       setPassword("");
     } catch (error) {
       const message =
@@ -100,11 +115,18 @@ export default function CoordinatorPage() {
   }
 
   async function handleSignOut() {
+    const firebaseAuth = auth;
+
+    if (!firebaseAuth) {
+      setStatus("Firebase setup is incomplete.");
+      return;
+    }
+
     setIsSubmitting(true);
     setStatus("Signing out...");
 
     try {
-      await signOut(auth);
+      await signOut(firebaseAuth);
       setCoordinatorStaff(null);
       setStatus("Signed out of the coordinator view.");
     } catch (error) {

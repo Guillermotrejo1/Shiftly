@@ -5,7 +5,7 @@ import type { Staff } from "@/types/scheduling";
 export type CoordinatorStaff = Staff & { id: string };
 
 export async function getCoordinatorStaffByEmail(email: string) {
-  if (!email) {
+  if (!email || !db) {
     return null;
   }
 

@@ -462,12 +462,20 @@ export default function Home() {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const firebaseAuth = auth;
+
+    if (!firebaseAuth) {
+      setIsAuthLoading(false);
+      setStatus("Firebase setup is incomplete.");
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
       setCurrentUser(user);
       setCoordinatorStaff(null);
       setIsAuthLoading(false);
 
-      if (!auth || !db) {
+      if (!db) {
         setStatus("Firebase setup is incomplete.");
         return;
       }
@@ -537,6 +545,13 @@ export default function Home() {
   }, [coordinatorStaff, queryClient]);
 
   async function handleCreateAccount() {
+    const firebaseAuth = auth;
+
+    if (!firebaseAuth) {
+      setStatus("Firebase setup is incomplete.");
+      return;
+    }
+
     if (!email || !password) {
       setStatus("Enter an email and password first.");
       return;
@@ -547,7 +562,7 @@ export default function Home() {
 
     try {
       const credential = await createUserWithEmailAndPassword(
-        auth,
+        firebaseAuth,
         email,
         password
       );
@@ -564,6 +579,13 @@ export default function Home() {
   }
 
   async function handleSignIn() {
+    const firebaseAuth = auth;
+
+    if (!firebaseAuth) {
+      setStatus("Firebase setup is incomplete.");
+      return;
+    }
+
     if (!email || !password) {
       setStatus("Enter an email and password first.");
       return;
@@ -573,7 +595,11 @@ export default function Home() {
     setStatus("Signing in...");
 
     try {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(
+        firebaseAuth,
+        email,
+        password
+      );
       setStatus(`Signed in as ${credential.user.email}.`);
       setEmail("");
       setPassword("");
@@ -587,11 +613,18 @@ export default function Home() {
   }
 
   async function handleSignOut() {
+    const firebaseAuth = auth;
+
+    if (!firebaseAuth) {
+      setStatus("Firebase setup is incomplete.");
+      return;
+    }
+
     setIsSubmitting(true);
     setStatus("Signing out...");
 
     try {
-      await signOut(auth);
+      await signOut(firebaseAuth);
       setStatus("Signed out. Sign in again to seed Firestore.");
     } catch (error) {
       const message =
