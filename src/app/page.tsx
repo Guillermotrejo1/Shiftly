@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -15,9 +14,12 @@ import {
   collection,
   deleteDoc,
   getDocs,
+  limit,
   onSnapshot,
+  query,
   runTransaction,
   setDoc,
+  where,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
@@ -36,6 +38,9 @@ import {
   HomeLoadingSkeleton,
   StaffDirectorySkeleton,
 } from "@/components/view-state";
+import AccessibleScheduleGrid, {
+  type ScheduleGridCell,
+} from "@/components/accessible-schedule-grid";
 import AccountMenu from "@/components/account-menu";
 import type { CallOut } from "@/types/scheduling";
 
@@ -61,6 +66,16 @@ type DirectoryCallOutRecord = DirectoryCallOut & {
   loggedByName: string;
   auditTrail: CallOutAuditEntry[];
 };
+
+const landingStaffWeekCells: ScheduleGridCell[] = [
+  { id: "mon", label: "Mon", items: ["Front Desk 08:00-14:00"] },
+  { id: "tue", label: "Tue", items: ["Operations 12:00-18:00"] },
+  { id: "wed", label: "Wed", items: [] },
+  { id: "thu", label: "Thu", items: ["Support Queue 09:00-13:00"] },
+  { id: "fri", label: "Fri", items: ["Coverage Float 10:00-16:00"] },
+  { id: "sat", label: "Sat", items: ["Weekend Rotation 11:00-15:00"] },
+  { id: "sun", label: "Sun", items: [] },
+];
 
 function getStartOfWeekLocal(baseDate = new Date()) {
   const result = new Date(baseDate);
@@ -179,6 +194,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [coordinatorStaff, setCoordinatorStaff] =
     useState<CoordinatorStaff | null>(null);
+  const [staffViewStaff, setStaffViewStaff] = useState<DirectoryStaff | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(() => !!auth);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState(
@@ -492,6 +508,7 @@ export default function Home() {
         queryClient.removeQueries({ queryKey: ["directory-staff"] });
         queryClient.removeQueries({ queryKey: ["directory-shifts"] });
         setSelectedStaff(null);
+        setStaffViewStaff(null);
         setUnitFilter("all");
         setAvailabilityFilter("all");
         setStatus("Welcome to Shiftly. Sign in to continue.");
@@ -501,6 +518,33 @@ export default function Home() {
       setStatus("Checking coordinator access...");
 
       void (async () => {
+        let resolvedStaffViewStaff: DirectoryStaff | null = null;
+        const staffQuery = query(
+          collection(db, "staff"),
+          where("email", "==", user.email ?? ""),
+          limit(1)
+        );
+        const staffSnapshot = await getDocs(staffQuery);
+
+        if (!staffSnapshot.empty) {
+          const staffDocument = staffSnapshot.docs[0];
+          const staff = staffDocument.data() as Staff;
+          const canUseStaffView =
+            staff.isActive && staff.role !== "coordinator" && staff.role !== "manager";
+
+          if (canUseStaffView) {
+            resolvedStaffViewStaff = {
+              ...staff,
+              id: staffDocument.id,
+            };
+            setStaffViewStaff(resolvedStaffViewStaff);
+          } else {
+            setStaffViewStaff(null);
+          }
+        } else {
+          setStaffViewStaff(null);
+        }
+
         const staff = await getCoordinatorStaffByEmail(user.email ?? "");
 
         if (!staff) {
@@ -509,7 +553,11 @@ export default function Home() {
           setSelectedStaff(null);
           setUnitFilter("all");
           setAvailabilityFilter("all");
-          setStatus("");
+          setStatus(
+            resolvedStaffViewStaff
+              ? `Welcome ${resolvedStaffViewStaff.firstName}. Your staff view is available below.`
+              : ""
+          );
           return;
         }
 
@@ -1011,21 +1059,42 @@ export default function Home() {
         <h1 className="view-title mt-3">
           Shiftly
         </h1>
-        <div className="mt-4 flex flex-wrap gap-2 text-sm">
-          <Link href="/coordinator" className="nav-chip">
-            Coordinator view
-          </Link>
-          <Link href="/manager" className="nav-chip">
-            Manager view
-          </Link>
-          <Link href="/staff" className="nav-chip">
-            Staff view
-          </Link>
-        </div>
         <p className="view-subtitle mt-4 text-base leading-7">
           {status}
         </p>
-        <div className="dashboard-matrix mt-8">
+        {currentUser && staffViewStaff && !coordinatorStaff ? (
+          <section className="section-card mt-8 p-6">
+            <h2 className="text-2xl font-semibold text-zinc-950">Staff View</h2>
+            <p className="mt-2 text-sm text-zinc-600">
+              Signed in as {staffViewStaff.firstName} {staffViewStaff.lastName}.
+              Personal schedule, assignment awareness, and upcoming shift visibility.
+            </p>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <article className="metric-card p-4">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Assigned Hours</p>
+                <p className="mt-2 text-2xl font-semibold text-zinc-900">29.5h</p>
+              </article>
+              <article className="metric-card p-4">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Next Shift</p>
+                <p className="mt-2 text-2xl font-semibold text-zinc-900">Tue 12:00</p>
+              </article>
+              <article className="metric-card p-4">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Open Swap Requests</p>
+                <p className="mt-2 text-2xl font-semibold text-zinc-900">0</p>
+              </article>
+            </div>
+
+            <div className="mt-8">
+              <AccessibleScheduleGrid
+                title="Staff weekly schedule grid"
+                cells={landingStaffWeekCells}
+              />
+            </div>
+          </section>
+        ) : null}
+        {!currentUser || coordinatorStaff || !staffViewStaff ? (
+          <div className="dashboard-matrix mt-8">
           {!currentUser ? (
             <>
               <section className="control-rail">
@@ -1584,7 +1653,8 @@ export default function Home() {
             </div>
           </section>
         ) : null}
-        </div>
+          </div>
+        ) : null}
         {selectedStaff ? (
           <ModalLayer>
             <div className="fixed inset-0 z-70 flex items-center justify-center bg-zinc-950/60 p-4">
