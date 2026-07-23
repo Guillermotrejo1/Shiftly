@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import AccessibleScheduleGrid, {
   type ScheduleGridCell,
 } from "@/components/accessible-schedule-grid";
+import AccountMenu from "@/components/account-menu";
+import { auth } from "@/lib/firebase";
 
 const staffWeekCells: ScheduleGridCell[] = [
   { id: "mon", label: "Mon", items: ["Front Desk 08:00-14:00"] },
@@ -16,9 +20,49 @@ const staffWeekCells: ScheduleGridCell[] = [
 ];
 
 export default function StaffPage() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  useEffect(() => {
+    const firebaseAuth = auth;
+
+    if (!firebaseAuth) {
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+      setCurrentUser(user);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  async function handleSignOut() {
+    const firebaseAuth = auth;
+
+    if (!firebaseAuth) {
+      return;
+    }
+
+    setIsSigningOut(true);
+
+    try {
+      await signOut(firebaseAuth);
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
+
   return (
     <main className="app-shell">
-      <div className="app-frame max-w-6xl">
+      <div className="app-frame relative max-w-6xl">
+        {currentUser ? (
+          <AccountMenu
+            currentUserEmail={currentUser.email ?? "Unknown user"}
+            onSignOut={handleSignOut}
+            disabled={isSigningOut}
+          />
+        ) : null}
         <div className="grid gap-6 xl:grid-cols-[17rem_minmax(0,1fr)]">
           <aside className="control-rail space-y-3">
             <p className="font-mono text-xs uppercase tracking-[0.18em] text-cyan-100/90">Routes</p>

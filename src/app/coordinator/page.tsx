@@ -17,6 +17,7 @@ import {
   AppErrorBoundary,
   CoordinatorLoadingSkeleton,
 } from "@/components/view-state";
+import AccountMenu from "@/components/account-menu";
 
 export default function CoordinatorPage() {
   const [email, setEmail] = useState("");
@@ -145,7 +146,14 @@ export default function CoordinatorPage() {
         <CoordinatorLoadingSkeleton />
       ) : (
         <main className="app-shell">
-          <div className="app-frame max-w-2xl">
+          <div className="app-frame relative max-w-2xl">
+            {currentUser ? (
+              <AccountMenu
+                currentUserEmail={currentUser.email ?? "Unknown user"}
+                onSignOut={handleSignOut}
+                disabled={isSubmitting || isAuthLoading}
+              />
+            ) : null}
             <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
               <aside className="control-rail space-y-3">
                 <p className="font-mono text-xs uppercase tracking-[0.18em] text-cyan-100/90">Routes</p>
@@ -201,14 +209,6 @@ export default function CoordinatorPage() {
                     className="rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
                   >
                     Sign in
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSignOut}
-                    disabled={isSubmitting || isAuthLoading || !currentUser}
-                    className="rounded-full border border-zinc-300 px-5 py-3 text-sm font-medium text-zinc-900 transition hover:border-zinc-950 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
-                  >
-                    Sign out
                   </button>
                 </div>
 

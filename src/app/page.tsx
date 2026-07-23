@@ -36,6 +36,7 @@ import {
   HomeLoadingSkeleton,
   StaffDirectorySkeleton,
 } from "@/components/view-state";
+import AccountMenu from "@/components/account-menu";
 import type { CallOut } from "@/types/scheduling";
 
 type DirectoryStaff = Staff & { id: string };
@@ -996,7 +997,14 @@ export default function Home() {
         <HomeLoadingSkeleton />
       ) : (
     <main className="app-shell">
-      <div className="app-frame stagger">
+      <div className="app-frame relative stagger">
+        {currentUser ? (
+          <AccountMenu
+            currentUserEmail={currentUser.email ?? "Unknown user"}
+            onSignOut={handleSignOut}
+            disabled={isSubmitting || isAuthLoading}
+          />
+        ) : null}
         <div className="inline-flex w-fit items-center rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-900">
           Live operations hub
         </div>
@@ -1018,7 +1026,9 @@ export default function Home() {
           {status}
         </p>
         <div className="dashboard-matrix mt-8">
-          <section className="control-rail">
+          {!currentUser ? (
+            <>
+              <section className="control-rail">
             <p className="font-mono text-xs uppercase tracking-[0.18em] text-cyan-100/90">Identity access</p>
             <div className="mt-3 grid gap-4 sm:grid-cols-1">
               <label className="text-sm font-medium text-cyan-50">
@@ -1046,10 +1056,9 @@ export default function Home() {
                 />
               </label>
             </div>
-          </section>
+              </section>
 
-          <div className="control-rail mt-0 flex flex-wrap gap-3">
-            {!currentUser && (
+              <div className="control-rail mt-0 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={handleCreateAccount}
@@ -1058,8 +1067,6 @@ export default function Home() {
               >
                 {isSubmitting ? "Working..." : "Create account"}
               </button>
-            )}
-            {!currentUser && (
               <button
                 type="button"
                 onClick={handleSignIn}
@@ -1068,20 +1075,13 @@ export default function Home() {
               >
                 Sign in
               </button>
-            )}
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={isSubmitting || isAuthLoading || !currentUser}
-              className="rounded-full border border-cyan-200 px-5 py-3 text-sm font-semibold text-cyan-50 transition hover:border-cyan-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
-            >
-              Sign out
-            </button>
-          </div>
+              </div>
 
-          <div className="control-rail mt-0 text-sm leading-6">
-            <p>{isAuthLoading ? "Checking auth session..." : currentUser ? `Current user: ${currentUser.email}` : "No user is signed in."}</p>
-          </div>
+              <div className="control-rail mt-0 text-sm leading-6">
+                <p>{isAuthLoading ? "Checking auth session..." : "No user is signed in."}</p>
+              </div>
+            </>
+          ) : null}
 
           {coordinatorStaff ? (
             <div className="control-rail mt-0 p-6 text-sm leading-6">
