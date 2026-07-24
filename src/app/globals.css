@@ -115,6 +115,7 @@ body {
   gap: 1.25rem;
 }
 
+
 @media (min-width: 1194px) and (min-height: 834px) {
   .dashboard-matrix {
     grid-template-columns: 21.5rem minmax(0, 1fr);
@@ -152,6 +153,18 @@ body {
 
   .coordinator-directory .coordinator-directory-card {
     height: 100%;
+  }
+
+  .coordinator-directory {
+    justify-self: start;
+    width: calc(100% + 340px);
+    max-width: none;
+  }
+
+  .coordinator-callout-log {
+    justify-self: end;
+    width: calc(100% - 360px);
+    min-width: 34rem;
   }
 }
 

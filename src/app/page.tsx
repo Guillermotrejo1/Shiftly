@@ -1574,7 +1574,7 @@ export default function Home() {
                         {staff.isActive ? "Available" : "Unavailable"}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-zinc-700">{staff.email}</p>
+                    {/* <p className="mt-2 text-sm text-zinc-700">{staff.email}</p> */}
                     <p className="mt-1 text-sm text-zinc-600">
                       Unit: {staff.department ?? "Unassigned"} | Role: {staff.role}
                     </p>
@@ -1598,7 +1598,7 @@ export default function Home() {
           </section>
         ) : null}
         {coordinatorStaff ? (
-          <section className="section-card mt-8 p-6">
+          <section className="section-card coordinator-callout-log mt-8 p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-zinc-950">Call-Out Log</h2>
