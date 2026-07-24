@@ -38,9 +38,6 @@ import {
   HomeLoadingSkeleton,
   StaffDirectorySkeleton,
 } from "@/components/view-state";
-import AccessibleScheduleGrid, {
-  type ScheduleGridCell,
-} from "@/components/accessible-schedule-grid";
 import AccountMenu from "@/components/account-menu";
 import type { CallOut } from "@/types/scheduling";
 
@@ -66,16 +63,6 @@ type DirectoryCallOutRecord = DirectoryCallOut & {
   loggedByName: string;
   auditTrail: CallOutAuditEntry[];
 };
-
-const landingStaffWeekCells: ScheduleGridCell[] = [
-  { id: "mon", label: "Mon", items: ["Front Desk 08:00-14:00"] },
-  { id: "tue", label: "Tue", items: ["Operations 12:00-18:00"] },
-  { id: "wed", label: "Wed", items: [] },
-  { id: "thu", label: "Thu", items: ["Support Queue 09:00-13:00"] },
-  { id: "fri", label: "Fri", items: ["Coverage Float 10:00-16:00"] },
-  { id: "sat", label: "Sat", items: ["Weekend Rotation 11:00-15:00"] },
-  { id: "sun", label: "Sun", items: [] },
-];
 
 function getStartOfWeekLocal(baseDate = new Date()) {
   const result = new Date(baseDate);
@@ -195,6 +182,7 @@ export default function Home() {
   const [coordinatorStaff, setCoordinatorStaff] =
     useState<CoordinatorStaff | null>(null);
   const [staffViewStaff, setStaffViewStaff] = useState<DirectoryStaff | null>(null);
+  const [staffViewShifts, setStaffViewShifts] = useState<DirectoryShift[]>([]);
   const [isAuthLoading, setIsAuthLoading] = useState(() => !!auth);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState(
@@ -509,6 +497,7 @@ export default function Home() {
         queryClient.removeQueries({ queryKey: ["directory-shifts"] });
         setSelectedStaff(null);
         setStaffViewStaff(null);
+        setStaffViewShifts([]);
         setUnitFilter("all");
         setAvailabilityFilter("all");
         setStatus("Welcome to Shiftly. Sign in to continue.");
@@ -538,11 +527,20 @@ export default function Home() {
               id: staffDocument.id,
             };
             setStaffViewStaff(resolvedStaffViewStaff);
+
+            const staffShiftsSnapshot = await getDocs(collection(db, "shifts"));
+            const assignedShifts = staffShiftsSnapshot.docs
+              .map(mapShiftDocument)
+              .filter((shift) => shift.assignedStaffIds.includes(staffDocument.id))
+              .sort((a, b) => a.startTime.localeCompare(b.startTime));
+            setStaffViewShifts(assignedShifts);
           } else {
             setStaffViewStaff(null);
+            setStaffViewShifts([]);
           }
         } else {
           setStaffViewStaff(null);
+          setStaffViewShifts([]);
         }
 
         const staff = await getCoordinatorStaffByEmail(user.email ?? "");
@@ -1035,6 +1033,56 @@ export default function Home() {
   }
 
   const showLoadingSkeleton = isAuthLoading;
+  const currentLocalDate = new Date(nowMs);
+  const staffMonthStart = new Date(
+    currentLocalDate.getFullYear(),
+    currentLocalDate.getMonth(),
+    1
+  );
+  const staffMonthLabel = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(staffMonthStart);
+  const staffMonthStartKey = staffMonthStart.toISOString().slice(0, 10);
+  const staffMonthEnd = new Date(
+    currentLocalDate.getFullYear(),
+    currentLocalDate.getMonth() + 1,
+    0
+  );
+  const staffMonthEndKey = staffMonthEnd.toISOString().slice(0, 10);
+  const staffCurrentMonthShifts = staffViewShifts.filter(
+    (shift) =>
+      shift.startTime.slice(0, 10) >= staffMonthStartKey &&
+      shift.startTime.slice(0, 10) <= staffMonthEndKey
+  );
+  const staffMonthHours = staffCurrentMonthShifts.reduce(
+    (total, shift) => total + getShiftDurationHours(shift),
+    0
+  );
+  const nextStaffShift = staffViewShifts.find(
+    (shift) => new Date(shift.endTime).getTime() >= nowMs
+  );
+
+  const staffCalendarStart = new Date(staffMonthStart);
+  const monthStartWeekday = (staffCalendarStart.getDay() + 6) % 7;
+  staffCalendarStart.setDate(staffCalendarStart.getDate() - monthStartWeekday);
+
+  const staffCalendarDays = Array.from({ length: 42 }, (_, index) => {
+    const dayDate = new Date(staffCalendarStart);
+    dayDate.setDate(staffCalendarStart.getDate() + index);
+    const dayKey = dayDate.toISOString().slice(0, 10);
+    const isCurrentMonth = dayDate.getMonth() === staffMonthStart.getMonth();
+    const dayShifts = staffCurrentMonthShifts
+      .filter((shift) => shift.startTime.slice(0, 10) === dayKey)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+    return {
+      dayKey,
+      dayDate,
+      isCurrentMonth,
+      dayShifts,
+    };
+  });
 
   return (
     <AppErrorBoundary
@@ -1067,29 +1115,81 @@ export default function Home() {
             <h2 className="text-2xl font-semibold text-zinc-950">Staff View</h2>
             <p className="mt-2 text-sm text-zinc-600">
               Signed in as {staffViewStaff.firstName} {staffViewStaff.lastName}.
-              Personal schedule, assignment awareness, and upcoming shift visibility.
+              Calendar view for your full schedule in {staffMonthLabel}.
             </p>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
               <article className="metric-card p-4">
                 <p className="text-xs uppercase tracking-wide text-zinc-500">Assigned Hours</p>
-                <p className="mt-2 text-2xl font-semibold text-zinc-900">29.5h</p>
+                <p className="mt-2 text-2xl font-semibold text-zinc-900">
+                  {staffMonthHours.toFixed(1)}h
+                </p>
               </article>
               <article className="metric-card p-4">
                 <p className="text-xs uppercase tracking-wide text-zinc-500">Next Shift</p>
-                <p className="mt-2 text-2xl font-semibold text-zinc-900">Tue 12:00</p>
+                <p className="mt-2 text-2xl font-semibold text-zinc-900">
+                  {nextStaffShift
+                    ? `${formatWeekdayLabel(new Date(nextStaffShift.startTime))} ${formatLocalTime(nextStaffShift.startTime)}`
+                    : "None"}
+                </p>
               </article>
               <article className="metric-card p-4">
-                <p className="text-xs uppercase tracking-wide text-zinc-500">Open Swap Requests</p>
-                <p className="mt-2 text-2xl font-semibold text-zinc-900">0</p>
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Shifts This Month</p>
+                <p className="mt-2 text-2xl font-semibold text-zinc-900">{staffCurrentMonthShifts.length}</p>
               </article>
             </div>
 
             <div className="mt-8">
-              <AccessibleScheduleGrid
-                title="Staff weekly schedule grid"
-                cells={landingStaffWeekCells}
-              />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold text-zinc-900">Monthly Schedule</h3>
+                <p className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700">
+                  {staffMonthLabel}
+                </p>
+              </div>
+
+              <div className="mt-4 grid grid-cols-7 gap-2 text-center text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                <span>Mon</span>
+                <span>Tue</span>
+                <span>Wed</span>
+                <span>Thu</span>
+                <span>Fri</span>
+                <span>Sat</span>
+                <span>Sun</span>
+              </div>
+
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-7">
+                {staffCalendarDays.map((day) => (
+                  <article
+                    key={day.dayKey}
+                    className={`min-h-36 rounded-2xl border p-3 ${
+                      day.isCurrentMonth
+                        ? "border-zinc-200 bg-zinc-50/90"
+                        : "border-zinc-100 bg-zinc-50/40 text-zinc-400"
+                    }`}
+                  >
+                    <p className="text-xs font-semibold">
+                      {day.dayDate.getDate()}
+                    </p>
+                    <div className="mt-2 space-y-1.5">
+                      {day.dayShifts.length === 0 ? (
+                        <p className="text-[11px] text-zinc-500">No shifts</p>
+                      ) : (
+                        day.dayShifts.map((shift) => (
+                          <div
+                            key={shift.id}
+                            className="rounded-lg bg-white px-2 py-1 text-[11px] text-zinc-700 ring-1 ring-zinc-200"
+                          >
+                            <p className="truncate font-medium text-zinc-900">{shift.title}</p>
+                            <p>
+                              {formatLocalTime(shift.startTime)} - {formatLocalTime(shift.endTime)}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
           </section>
         ) : null}
