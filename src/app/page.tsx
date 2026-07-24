@@ -1230,7 +1230,7 @@ export default function Home() {
           </section>
         ) : null}
         {coordinatorStaff ? (
-          <section className="section-card mt-8 p-6">
+          <section className="section-card coordinator-schedule mt-8 p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-zinc-950">Weekly Schedule Board</h2>
@@ -1238,7 +1238,7 @@ export default function Home() {
                   {formatRangeDate(weekStart)} - {formatRangeDate(weekEnd)}
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="coordinator-schedule-toolbar flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsPostShiftModalOpen(true)}
@@ -1279,7 +1279,7 @@ export default function Home() {
               aria-colcount={weekBoardDays.length}
               aria-rowcount={1}
             >
-              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-7" role="row">
+              <div className="coordinator-week-grid mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-7" role="row">
               {weekBoardDays.map((day, index) => (
                 <div
                   key={day.dayKey}
@@ -1292,7 +1292,7 @@ export default function Home() {
                   tabIndex={activeScheduleCellIndex === index ? 0 : -1}
                   onFocus={() => setActiveScheduleCellIndex(index)}
                   onKeyDown={(event) => handleScheduleCellKeyDown(event, index)}
-                  className="min-h-64 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 outline-none focus-visible:ring-2 focus-visible:ring-zinc-950"
+                  className="coordinator-week-cell min-h-64 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 outline-none focus-visible:ring-2 focus-visible:ring-zinc-950"
                 >
                   <div className="flex items-center justify-between gap-2 border-b border-zinc-200 pb-3">
                     <p className="text-sm font-semibold text-zinc-900">{day.label}</p>
@@ -1393,7 +1393,7 @@ export default function Home() {
           </section>
         ) : null}
         {coordinatorStaff ? (
-          <section className="section-card mt-8 p-6">
+          <section className="section-card coordinator-directory mt-8 p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-zinc-950">Staff Directory</h2>
@@ -1414,7 +1414,7 @@ export default function Home() {
 
             {isStaffDirectoryExpanded ? (
               <>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="coordinator-directory-filters mt-4 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium text-zinc-900">
                 Unit
                 <select
@@ -1447,7 +1447,7 @@ export default function Home() {
               </label>
                 </div>
 
-                <div className="mt-6 space-y-3">
+                <div className="coordinator-directory-list mt-6 space-y-3">
               {isDirectoryLoading ? (
                 <StaffDirectorySkeleton />
               ) : filteredDirectoryStaff.length === 0 ? (
@@ -1458,7 +1458,7 @@ export default function Home() {
                 filteredDirectoryStaff.map((staff) => (
                   <article
                     key={staff.id}
-                    className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+                    className="coordinator-directory-card rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-base font-semibold text-zinc-900">

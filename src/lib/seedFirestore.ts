@@ -152,6 +152,18 @@ const mockStaffSeeds: MockStaffSeed[] = [
     isActive: true,
     maxWeeklyHours: 20,
   },
+  {
+    id: "staff_012",
+    firstName: "Spider",
+    lastName: "man",
+    email: "spider2@gmail.com",
+    phoneNumber: "555-0112",
+    role: "employee",
+    department: "Operations",
+    skills: ["Closing", "Safety"],
+    isActive: true,
+    maxWeeklyHours: 20,
+  },
 ];
 
 function getStartOfWeek(baseDate = new Date()) {
